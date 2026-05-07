@@ -302,7 +302,7 @@ private:
         else if (name == "xdigit") { add('0','9'); add('A','F'); add('a','f'); }
         else if (name == "alnum")  { add('A','Z'); add('a','z'); add('0','9'); }
         else if (name == "space")  {
-            for (unsigned b : {' ', '\t', '\n', '\v', '\f', '\r'}) out.add(b);
+            for (unsigned b : {0x20u, 0x09u, 0x0au, 0x0bu, 0x0cu, 0x0du}) out.add(b);
         }
         else if (name == "blank")  { out.add(' '); out.add('\t'); }
         else if (name == "cntrl")  { add(0x00, 0x1f); out.add(0x7f); }
