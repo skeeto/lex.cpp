@@ -1,6 +1,6 @@
 #pragma once
 
-#include "diag.h"
+#include "diag.hpp"
 
 #include <optional>
 #include <string>

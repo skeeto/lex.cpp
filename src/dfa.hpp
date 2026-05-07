@@ -1,6 +1,6 @@
 #pragma once
 
-#include "nfa.h"
+#include "nfa.hpp"
 
 #include <array>
 #include <cstdint>

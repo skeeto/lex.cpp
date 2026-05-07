@@ -1,6 +1,6 @@
 #pragma once
 
-#include "regex.h"
+#include "regex.hpp"
 
 #include <cstdint>
 #include <string>

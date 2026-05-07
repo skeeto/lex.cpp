@@ -1,9 +1,9 @@
 // Fuzz the regex parser + NFA + DFA pipeline.
 
-#include "diag.h"
-#include "regex.h"
-#include "nfa.h"
-#include "dfa.h"
+#include "diag.hpp"
+#include "regex.hpp"
+#include "nfa.hpp"
+#include "dfa.hpp"
 
 #include <cstddef>
 #include <cstdint>

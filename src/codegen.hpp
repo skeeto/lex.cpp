@@ -1,8 +1,8 @@
 #pragma once
 
-#include "dfa.h"
-#include "nfa.h"
-#include "source.h"
+#include "dfa.hpp"
+#include "nfa.hpp"
+#include "source.hpp"
 
 #include <string>
 

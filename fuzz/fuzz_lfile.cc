@@ -1,11 +1,11 @@
 // Fuzz the entire .l pipeline through codegen.
 
-#include "diag.h"
-#include "source.h"
-#include "regex.h"
-#include "nfa.h"
-#include "dfa.h"
-#include "codegen.h"
+#include "diag.hpp"
+#include "source.hpp"
+#include "regex.hpp"
+#include "nfa.hpp"
+#include "dfa.hpp"
+#include "codegen.hpp"
 
 #include <cstddef>
 #include <cstdint>

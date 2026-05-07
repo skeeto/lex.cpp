@@ -1,4 +1,4 @@
-#include "nfa.h"
+#include "nfa.hpp"
 
 #include <cassert>
 #include <utility>

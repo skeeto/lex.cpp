@@ -1,9 +1,9 @@
-#include "codegen.h"
-#include "diag.h"
-#include "dfa.h"
-#include "nfa.h"
-#include "regex.h"
-#include "source.h"
+#include "codegen.hpp"
+#include "diag.hpp"
+#include "dfa.hpp"
+#include "nfa.hpp"
+#include "regex.hpp"
+#include "source.hpp"
 
 #include <cstdio>
 #include <cstdlib>

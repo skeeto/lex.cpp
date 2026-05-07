@@ -1,4 +1,4 @@
-#include "dfa.h"
+#include "dfa.hpp"
 
 #include <algorithm>
 #include <map>
