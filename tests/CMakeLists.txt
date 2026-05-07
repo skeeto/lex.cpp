@@ -22,6 +22,27 @@ set(LEXCPP_TEST_COMPRESS "" CACHE STRING
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/differential.cmake)
 
+# Custom test: yytables_fload roundtrip end-to-end.
+# Generates a scanner with --tables-file, compiles with a driver that
+# calls yytables_fload before yylex, runs against fixed input, and
+# compares against a snapshot.
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/run_tables_load.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/run_tables_load.cmake
+    @ONLY)
+add_test(
+    NAME tables_load_roundtrip
+    COMMAND ${CMAKE_COMMAND}
+        -DLEX_EXE=$<TARGET_FILE:lex>
+        -DLEX_LIB=$<TARGET_FILE:lex_lib>
+        -DCC_EXE=${CMAKE_C_COMPILER}
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/work/tables_load
+        -DSCAN_L=${CMAKE_CURRENT_SOURCE_DIR}/tables_load/scanner.l
+        -DDRIVER_C=${CMAKE_CURRENT_SOURCE_DIR}/tables_load/driver.c
+        -DEXPECTED_OUT=${CMAKE_CURRENT_SOURCE_DIR}/tables_load/expected.txt
+        -DINPUT_TXT=${CMAKE_CURRENT_SOURCE_DIR}/tables_load/input.txt
+        -P ${CMAKE_CURRENT_BINARY_DIR}/run_tables_load.cmake)
+
 # Auto-discover test cases.
 file(GLOB CASE_DIRS LIST_DIRECTORIES true RELATIVE
      ${CMAKE_CURRENT_SOURCE_DIR}/cases

@@ -1,0 +1,59 @@
+# Driver for the yytables_fload end-to-end test:
+# 1. Generate scanner.c + scanner.tbl with `lex --tables-file=`.
+# 2. Compile scanner.c against driver.c (which calls yytables_fload then
+#    yylex). NO liblex this time -- the driver provides main+yywrap.
+# 3. Run with the input on stdin, pass the .tbl path as argv[1].
+# 4. Diff stdout against expected.txt.
+
+file(REMOVE_RECURSE ${WORK_DIR})
+file(MAKE_DIRECTORY ${WORK_DIR})
+
+set(GEN_C   ${WORK_DIR}/scanner.c)
+set(GEN_TBL ${WORK_DIR}/scanner.tbl)
+set(BIN     ${WORK_DIR}/scanner)
+
+execute_process(
+    COMMAND ${LEX_EXE} --tables-file=${GEN_TBL} -o ${GEN_C} ${SCAN_L}
+    RESULT_VARIABLE rv
+    OUTPUT_VARIABLE out
+    ERROR_VARIABLE  err)
+if(NOT rv EQUAL 0)
+    message(FATAL_ERROR "lex generation failed (rc=${rv})\nstderr:\n${err}")
+endif()
+
+execute_process(
+    COMMAND ${CC_EXE} -std=c99 -O0 -g -w
+            -Wno-error=implicit-function-declaration
+            -Wno-error=int-conversion
+            -Wno-error=incompatible-pointer-types
+            ${GEN_C} ${DRIVER_C} -o ${BIN}
+    RESULT_VARIABLE rv
+    OUTPUT_VARIABLE out
+    ERROR_VARIABLE  err)
+if(NOT rv EQUAL 0)
+    message(FATAL_ERROR "compile failed (rc=${rv})\nstderr:\n${err}")
+endif()
+
+execute_process(
+    COMMAND ${BIN} ${GEN_TBL}
+    INPUT_FILE  ${INPUT_TXT}
+    OUTPUT_FILE ${WORK_DIR}/actual.txt
+    ERROR_QUIET
+    RESULT_VARIABLE rv)
+if(NOT rv EQUAL 0)
+    file(READ ${WORK_DIR}/actual.txt got)
+    message(FATAL_ERROR "scanner exited ${rv}\nstdout:\n${got}")
+endif()
+
+execute_process(
+    COMMAND ${CMAKE_COMMAND} -E compare_files
+            ${EXPECTED_OUT} ${WORK_DIR}/actual.txt
+    RESULT_VARIABLE diff_rv)
+if(NOT diff_rv EQUAL 0)
+    file(READ ${EXPECTED_OUT} exp)
+    file(READ ${WORK_DIR}/actual.txt got)
+    message(FATAL_ERROR
+        "tables_load output mismatch\n"
+        "expected:\n${exp}"
+        "got:\n${got}")
+endif()

@@ -408,6 +408,127 @@ void test_safe_trail_no_warning() {
     CHECK(d.ok());
 }
 
+void test_tables_serialise_dense() {
+    std::fprintf(stderr, "test_tables_serialise_dense\n");
+    lexcpp::Diagnostics d;
+    auto file = lexcpp::parse_lex_file("<t>",
+        "%option noyywrap\n%%\n[a-z]+ ECHO;\n%%\n", d);
+    CHECK(file.has_value());
+    lexcpp::NFA nfa;
+    lexcpp::init_nfa(nfa, {"INITIAL"}, {0});
+    auto resolver = [](std::string_view) -> std::optional<std::string> {
+        return std::nullopt;
+    };
+    auto t = lexcpp::parse_regex("[a-z]+", resolver, false, d, {});
+    lexcpp::add_rule_to_nfa(nfa, t.get(), 0, {});
+    auto dfa = lexcpp::build_dfa(nfa, /*ec=*/true, /*meta=*/false);
+    auto bytes = lexcpp::serialise_tables(nfa, dfa, /*compressed=*/false, "yy");
+    CHECK(bytes.size() > 16);
+    // Flag bit 0 (compressed) should be 0 in this case; offset = 4+4+4+name(2) = 14
+    CHECK(bytes[14] == 0 && bytes[15] == 0 && bytes[16] == 0 && bytes[17] == 0);
+}
+
+void test_tables_write_file() {
+    std::fprintf(stderr, "test_tables_write_file\n");
+    lexcpp::Diagnostics d;
+    auto file = lexcpp::parse_lex_file("<t>",
+        "%option noyywrap\n%%\n[a-z]+ ECHO;\n%%\n", d);
+    CHECK(file.has_value());
+    lexcpp::NFA nfa;
+    lexcpp::init_nfa(nfa, {"INITIAL"}, {0});
+    auto resolver = [](std::string_view) -> std::optional<std::string> {
+        return std::nullopt;
+    };
+    auto t = lexcpp::parse_regex("[a-z]+", resolver, false, d, {});
+    lexcpp::add_rule_to_nfa(nfa, t.get(), 0, {});
+    auto dfa = lexcpp::build_dfa(nfa, true, true);
+    const char *path = "/tmp/lex_unit_tables.tbl";
+    bool ok = lexcpp::write_tables_file(path, nfa, dfa, true, "yy");
+    CHECK(ok);
+    // Read back the magic.
+    FILE *f = std::fopen(path, "rb");
+    CHECK(f != nullptr);
+    if (f) {
+        std::uint8_t hdr[4];
+        CHECK(std::fread(hdr, 1, 4, f) == 4);
+        CHECK(hdr[0] == 0xF1 && hdr[1] == 0x3C
+           && hdr[2] == 0x57 && hdr[3] == 0xB1);
+        std::fclose(f);
+    }
+}
+
+void test_codegen_compression_modes() {
+    std::fprintf(stderr, "test_codegen_compression_modes\n");
+    lexcpp::Diagnostics d;
+    auto file = lexcpp::parse_lex_file("<t>",
+        "%option noyywrap\n%%\n[a-z]+ ECHO;\n%%\n", d);
+    CHECK(file.has_value());
+    lexcpp::NFA nfa;
+    lexcpp::init_nfa(nfa, {"INITIAL"}, {0});
+    auto resolver = [](std::string_view) -> std::optional<std::string> {
+        return std::nullopt;
+    };
+    auto t = lexcpp::parse_regex("[a-z]+", resolver, false, d, {});
+    lexcpp::add_rule_to_nfa(nfa, t.get(), 0, {});
+
+    // -f: dense yy_nxt[s][256], no yy_ec collapse.
+    {
+        auto dfa = lexcpp::build_dfa(nfa, /*ec=*/false);
+        lexcpp::CodegenInput in;
+        in.file = &*file; in.nfa = &nfa; in.dfa = &dfa;
+        in.compress = lexcpp::CompressMode::Full;
+        auto code = lexcpp::emit_c(in);
+        CHECK(code.find("yy_nxt[") != std::string::npos);
+        CHECK(code.find("yy_base[") == std::string::npos);  // no comb
+    }
+    // -Cfe: dense yy_nxt[s][nclasses] + yy_ec.
+    {
+        auto dfa = lexcpp::build_dfa(nfa, true, false);
+        lexcpp::CodegenInput in;
+        in.file = &*file; in.nfa = &nfa; in.dfa = &dfa;
+        in.compress = lexcpp::CompressMode::FullEc;
+        auto code = lexcpp::emit_c(in);
+        CHECK(code.find("yy_ec[") != std::string::npos);
+        CHECK(code.find("yy_base[") == std::string::npos);
+    }
+    // -Cem: comb-packed.
+    {
+        auto dfa = lexcpp::build_dfa(nfa, true, true);
+        lexcpp::CodegenInput in;
+        in.file = &*file; in.nfa = &nfa; in.dfa = &dfa;
+        in.compress = lexcpp::CompressMode::Compress;
+        auto code = lexcpp::emit_c(in);
+        CHECK(code.find("yy_base[") != std::string::npos);
+        CHECK(code.find("yy_chk[")  != std::string::npos);
+        CHECK(code.find("yy_meta[") != std::string::npos);
+    }
+}
+
+void test_codegen_tables_loader() {
+    std::fprintf(stderr, "test_codegen_tables_loader\n");
+    lexcpp::Diagnostics d;
+    auto file = lexcpp::parse_lex_file("<t>",
+        "%option noyywrap\n%%\n[a-z]+ ECHO;\n%%\n", d);
+    CHECK(file.has_value());
+    lexcpp::NFA nfa;
+    lexcpp::init_nfa(nfa, {"INITIAL"}, {0});
+    auto resolver = [](std::string_view) -> std::optional<std::string> {
+        return std::nullopt;
+    };
+    auto t = lexcpp::parse_regex("[a-z]+", resolver, false, d, {});
+    lexcpp::add_rule_to_nfa(nfa, t.get(), 0, {});
+    auto dfa = lexcpp::build_dfa(nfa, true, true);
+    lexcpp::CodegenInput in;
+    in.file = &*file; in.nfa = &nfa; in.dfa = &dfa;
+    in.compress = lexcpp::CompressMode::Compress;
+    in.emit_tables_loader = true;
+    auto code = lexcpp::emit_c(in);
+    CHECK(code.find("yytables_fload") != std::string::npos);
+    CHECK(code.find("0xF13C57B1") != std::string::npos);
+    // Tables should be non-const when loader is enabled.
+    CHECK(code.find("static int yy_nxt") != std::string::npos);
+}
+
 void test_meta_classes() {
     std::fprintf(stderr, "test_meta_classes\n");
     // A grammar where two classes (lower-case letters and underscore)
@@ -516,6 +637,10 @@ int main() {
     test_reentrant_option();
     test_bison_bridge_option();
     test_meta_classes();
+    test_tables_serialise_dense();
+    test_tables_write_file();
+    test_codegen_compression_modes();
+    test_codegen_tables_loader();
     test_dangerous_trail_warning();
     test_safe_trail_no_warning();
     test_tables_serialise();
