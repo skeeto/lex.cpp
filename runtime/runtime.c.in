@@ -28,6 +28,9 @@ struct yyguts_t {
     YY_BUFFER_STATE *yy_buffer_stack_r;
     size_t           yy_buffer_stack_max_r;
     size_t           yy_buffer_stack_top_r;
+    int             *yy_state_stack_r;
+    size_t           yy_state_stack_max_r;
+    size_t           yy_state_stack_top_r;
     char            *yytext_r;
     int              yyleng_r;
     int              yylineno_r;
@@ -90,6 +93,9 @@ FILE *yyout    = 0;
 #define yy_buffer_stack       (YY_G->yy_buffer_stack_r)
 #define yy_buffer_stack_max   (YY_G->yy_buffer_stack_max_r)
 #define yy_buffer_stack_top   (YY_G->yy_buffer_stack_top_r)
+#define yy_state_stack       (YY_G->yy_state_stack_r)
+#define yy_state_stack_max   (YY_G->yy_state_stack_max_r)
+#define yy_state_stack_top   (YY_G->yy_state_stack_top_r)
 #define yy_init_done          (YY_G->yy_init_done_r)
 
 #define YY_CURRENT_BUFFER \
@@ -339,6 +345,33 @@ static void yy_do_yyless(int n YY_DECLPM_C) {
     b->yyb_at_bol = (n > 0 && yytext[n - 1] == '\n');
 }
 
+/* ---- start-condition stack ---------------------------------------- */
+
+static void yy_grow_state_stack(YY_DECLPM) {
+    size_t new_max = yy_state_stack_max ? yy_state_stack_max * 2 : 16;
+    int *p = (int*)realloc(yy_state_stack, new_max * sizeof(int));
+    if (!p) { fprintf(stderr, "lex: out of memory\n"); exit(2); }
+    yy_state_stack = p;
+    yy_state_stack_max = new_max;
+}
+
+void yy_push_state(int new_state YY_DECLPM_C) {
+    if (yy_state_stack_top >= yy_state_stack_max)
+        yy_grow_state_stack(YY_CALLPM);
+    yy_state_stack[yy_state_stack_top++] = yy_start;
+    yy_start = new_state;
+}
+
+void yy_pop_state(YY_DECLPM) {
+    if (yy_state_stack_top == 0) return;
+    yy_start = yy_state_stack[--yy_state_stack_top];
+}
+
+int yy_top_state(YY_DECLPM) {
+    if (yy_state_stack_top == 0) return yy_start;
+    return yy_state_stack[yy_state_stack_top - 1];
+}
+
 /* The codegen-emitted yylex body refers to these as bare names; expose
    them as macros that route through YY_CURRENT_BUFFER's renamed fields. */
 #define yy_buf       (YY_CURRENT_BUFFER->yyb_data)
@@ -389,6 +422,7 @@ int yylex_destroy(yyscan_t scanner) {
         --g->yy_buffer_stack_top_r;
     }
     free(g->yy_buffer_stack_r);
+    free(g->yy_state_stack_r);
     free(g);
     return 0;
 }
