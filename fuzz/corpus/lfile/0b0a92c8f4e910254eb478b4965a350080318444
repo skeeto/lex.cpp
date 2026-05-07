@@ -1,0 +1,9 @@
+%option noyyyrap
+%%
+"if"        |
+"then"      |
+"else"  ext);
+[a-z]+      printf("id(%s) ", yytext);
+.|\n        ECHO;
+%%
+int main(void){ yylex(); return 0; }
