@@ -382,6 +382,32 @@ void test_tables_serialise() {
     CHECK(bytes[4] == 0 && bytes[5] == 0 && bytes[6] == 0 && bytes[7] == 1);
 }
 
+void test_dangerous_trail_warning() {
+    std::fprintf(stderr, "test_dangerous_trail_warning\n");
+    lexcpp::Diagnostics d;
+    auto resolver = [](std::string_view) -> std::optional<std::string> {
+        return std::nullopt;
+    };
+    // r=[a-z]+ (variable) and s=[0-9]+ (variable) -- ambiguous.
+    auto pp = lexcpp::parse_pattern("[a-z]+/[0-9]+", resolver, false, d, {});
+    CHECK(pp.tree != nullptr);
+    CHECK(pp.trail_len == -1);
+    CHECK(d.ok());                      // warnings, not errors
+}
+
+void test_safe_trail_no_warning() {
+    std::fprintf(stderr, "test_safe_trail_no_warning\n");
+    lexcpp::Diagnostics d;
+    auto resolver = [](std::string_view) -> std::optional<std::string> {
+        return std::nullopt;
+    };
+    // Fixed r ("if") + variable s = unambiguous boundary; no warning.
+    auto pp = lexcpp::parse_pattern("\"if\"/[ \\t]+", resolver, false, d, {});
+    CHECK(pp.tree != nullptr);
+    CHECK(pp.trail_len == -1);
+    CHECK(d.ok());
+}
+
 void test_meta_classes() {
     std::fprintf(stderr, "test_meta_classes\n");
     // A grammar where two classes (lower-case letters and underscore)
@@ -490,6 +516,8 @@ int main() {
     test_reentrant_option();
     test_bison_bridge_option();
     test_meta_classes();
+    test_dangerous_trail_warning();
+    test_safe_trail_no_warning();
     test_tables_serialise();
     test_top_block();
     test_header_emit();

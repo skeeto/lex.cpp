@@ -470,6 +470,11 @@ ParsedPattern parse_pattern(std::string_view src,
 
     // Variable-length trail. Emit r BOUNDARY s; the boundary marker
     // tells the NFA/DFA where to rewind at accept.
+    if (fixed_length(r.get()) < 0) {
+        // Both head and tail variable -- where r ends is ambiguous.
+        // Same diagnostic flex emits.
+        diag.warn(loc, "dangerous trailing context (r and s both variable-length)");
+    }
     out.trail_len = -1;
     auto bound = std::make_unique<Node>();
     bound->kind = NodeKind::TrailBoundary;
