@@ -157,7 +157,7 @@ jobs:
         run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DLEXCPP_BUILD_TESTS=OFF
           cmake --build build -j
-      - name: Smoke 1 (codegen parity: wine output == native output)
+      - name: "Smoke 1 (codegen parity: wine output == native output)"
         run: |
           fail=0
           for d in tests/cases/*/; do
@@ -172,8 +172,7 @@ jobs:
           done
           echo "Codegen-parity failures: $fail"
           test $fail -eq 0
-      - name: Smoke 2 (full mingw+wine: compile generated .c with mingw,
-          run under wine, compare against flex on representative cases)
+      - name: "Smoke 2 (mingw-built scanner under wine vs flex)"
         run: |
           fail=0
           for case in 010_minimal 080_longest 100_echo 160_reentrant_basic \
