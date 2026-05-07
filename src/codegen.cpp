@@ -258,7 +258,11 @@ std::string yy_lex_body_reject(const LexFile& f, const NFA& nfa,
     s << "    for (;;) {\n";
     s << "        yy_text_unseal(YY_CALLPM);\n";
     s << "        if (yy_buf_pos >= yy_buf_end) {\n";
-    s << "            yytext = yy_buf + yy_buf_pos;\n";
+    if (f.options.array) {
+        s << "            yytext[0] = 0;\n";
+    } else {
+        s << "            yytext = yy_buf + yy_buf_pos;\n";
+    }
     s << "            yyleng = 0;\n";
     s << "            yy_text_save = 0;\n";
     s << "            yy_text_active = 1;\n";
@@ -317,7 +321,15 @@ std::string yy_lex_body_reject(const LexFile& f, const NFA& nfa,
         s << "            continue;\n";
     }
     s << "        }\n";
-    s << "        yytext = yy_buf + yy_mb;\n";
+    if (f.options.array) {
+        s << "        {\n";
+        s << "            size_t yy_cp = yy_len < YYLMAX - 1 ? yy_len : YYLMAX - 1;\n";
+        s << "            memcpy(yytext, yy_buf + yy_mb, yy_cp);\n";
+        s << "            yytext[yy_cp] = 0;\n";
+        s << "        }\n";
+    } else {
+        s << "        yytext = yy_buf + yy_mb;\n";
+    }
     s << "        {\n";
     s << "            int yy_trail = yy_rule_trail_len[yy_rule];\n";
     s << "            if (yy_trail > 0 && (size_t)yy_trail <= yy_len) yy_len -= (size_t)yy_trail;\n";
@@ -389,7 +401,11 @@ std::string yy_lex_body(const LexFile& f, const DFA& dfa, const NFA& nfa,
     s << "        yy_text_unseal(YY_CALLPM);\n";
     s << "        if (yy_buf_pos >= yy_buf_end) {\n";
     s << "            int yy_rule = -1;\n";
-    s << "            yytext = yy_buf + yy_buf_pos;\n";
+    if (f.options.array) {
+        s << "            yytext[0] = 0;\n";
+    } else {
+        s << "            yytext = yy_buf + yy_buf_pos;\n";
+    }
     s << "            yyleng = 0;\n";
     s << "            yy_text_save = 0;\n";
     s << "            yy_text_active = 1;\n";
@@ -485,7 +501,15 @@ std::string yy_lex_body(const LexFile& f, const DFA& dfa, const NFA& nfa,
     }
     s << "        }\n";
 
-    s << "        yytext = yy_buf + yy_mb;\n";
+    if (f.options.array) {
+        s << "        {\n";
+        s << "            size_t yy_cp = yy_len < YYLMAX - 1 ? yy_len : YYLMAX - 1;\n";
+        s << "            memcpy(yytext, yy_buf + yy_mb, yy_cp);\n";
+        s << "            yytext[yy_cp] = 0;\n";
+        s << "        }\n";
+    } else {
+        s << "        yytext = yy_buf + yy_mb;\n";
+    }
     s << "        {\n";
     s << "            int yy_trail = yy_rule_trail_len[yy_rule];\n";
     s << "            if (yy_trail > 0 && (size_t)yy_trail <= yy_len) {\n";
@@ -502,7 +526,11 @@ std::string yy_lex_body(const LexFile& f, const DFA& dfa, const NFA& nfa,
     s << "        }\n";
     s << "        yy_buf_pos = yy_mb + yy_len;\n";
     s << "        if (yy_more_offset > 0) {\n";
-    s << "            yytext = yy_buf + yy_mb - (size_t)yy_more_offset;\n";
+    if (f.options.array) {
+        s << "            /* yymore is unsupported with %option array */\n";
+    } else {
+        s << "            yytext = yy_buf + yy_mb - (size_t)yy_more_offset;\n";
+    }
     s << "            yy_len += (size_t)yy_more_offset;\n";
     s << "        }\n";
     s << "        yy_more_flag = 0;\n";
@@ -592,6 +620,10 @@ std::string emit_c(const CodegenInput& in) {
     // Track-yylineno toggle for the runtime helpers.
     out += "#define YY_TRACK_LINENO ";
     out += (f.options.yylineno ? "1" : "0");
+    out += "\n";
+    // %option array selects the fixed-buffer yytext layout.
+    out += "#define YY_ARRAY ";
+    out += (f.options.array ? "1" : "0");
     out += "\n";
     // Extra-type for yyextra (default void*).
     out += "#ifndef YY_EXTRA_TYPE\n";

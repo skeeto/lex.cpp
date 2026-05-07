@@ -49,6 +49,7 @@ struct LexFile {
         bool bison_bridge = false;
         bool bison_locations = false;
         bool uses_reject = false;      // detected post-parse from action text
+        bool array = false;            // %option array -- yytext as fixed buffer
         std::string prefix = "yy";
         std::string extra_type;        // user-supplied (default "void *")
     } options;

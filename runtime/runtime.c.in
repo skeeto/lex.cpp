@@ -24,6 +24,10 @@ struct yy_buffer_state {
     int     yy_is_interactive;
 };
 
+#ifndef YYLMAX
+#define YYLMAX 8192
+#endif
+
 struct yyguts_t {
     YY_BUFFER_STATE *yy_buffer_stack_r;
     size_t           yy_buffer_stack_max_r;
@@ -31,7 +35,11 @@ struct yyguts_t {
     int             *yy_state_stack_r;
     size_t           yy_state_stack_max_r;
     size_t           yy_state_stack_top_r;
+#if YY_ARRAY
+    char             yytext_r[YYLMAX];
+#else
     char            *yytext_r;
+#endif
     int              yyleng_r;
     int              yylineno_r;
     FILE            *yyin_r;
@@ -74,7 +82,11 @@ static yyguts_t yy_global_guts_;
 #define YY_CALLPM
 #define YY_CALLPM_C
 
+#if YY_ARRAY
+char  yytext[YYLMAX];
+#else
 char *yytext   = 0;
+#endif
 int   yyleng   = 0;
 int   yylineno = 1;
 FILE *yyin     = 0;
@@ -302,7 +314,11 @@ void yyrestart(FILE *new_input YY_DECLPM_C) {
     yy_text_active = 0;
     yy_text_save = 0;
     yy_start = 0;
+#if YY_ARRAY
+    yytext[0] = 0;
+#else
     yytext = 0;
+#endif
     yyleng = 0;
     yy_slurp(YY_CALLPM);
 }

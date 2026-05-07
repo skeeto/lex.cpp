@@ -265,8 +265,9 @@ struct Parser {
         else if (key == "bison-bridge")           out.options.bison_bridge = true;
         else if (key == "bison-locations")        out.options.bison_locations = true;
         else if (key == "extra-type")             out.options.extra_type = val;
-        else if (is_in(key, {"c++", "lex-compat", "posix-compat",
-                             "header", "array", "pointer"})) {
+        else if (key == "array")                  out.options.array = true;
+        else if (key == "pointer")                out.options.array = false;
+        else if (is_in(key, {"c++", "lex-compat", "posix-compat", "header"})) {
             diag.error(loc(), "unsupported %option: " + key);
         }
         else if (is_known_ignored_option(key)) {
