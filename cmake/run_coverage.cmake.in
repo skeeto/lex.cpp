@@ -7,8 +7,13 @@ set(CTEST_EXE     "@CMAKE_CTEST_COMMAND@")
 set(CMAKE_BIN     "@CMAKE_COMMAND@")
 
 # Resolve LEX_BIN at run time (TARGET_FILE generator expression cannot
-# be evaluated by cmake -P).
+# be evaluated by cmake -P). After Phase 17 the unified bin/ output
+# directory is build/bin/; pre-Phase-17 trees still had build/src/.
 file(GLOB LEX_CANDIDATES
+    "${BIN_DIR}/bin/lex"
+    "${BIN_DIR}/bin/lex.exe"
+    "${BIN_DIR}/bin/Debug/lex.exe"
+    "${BIN_DIR}/bin/Release/lex.exe"
     "${BIN_DIR}/src/lex"
     "${BIN_DIR}/src/lex.exe"
     "${BIN_DIR}/src/Debug/lex.exe"
@@ -20,6 +25,10 @@ endif()
 list(GET LEX_CANDIDATES 0 LEX_BIN)
 
 file(GLOB UNIT_CANDIDATES
+    "${BIN_DIR}/bin/lexcpp_unit"
+    "${BIN_DIR}/bin/lexcpp_unit.exe"
+    "${BIN_DIR}/bin/Debug/lexcpp_unit.exe"
+    "${BIN_DIR}/bin/Release/lexcpp_unit.exe"
     "${BIN_DIR}/tests/unit/lexcpp_unit"
     "${BIN_DIR}/tests/unit/lexcpp_unit.exe"
     "${BIN_DIR}/tests/unit/Debug/lexcpp_unit.exe"

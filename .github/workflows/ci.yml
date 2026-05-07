@@ -100,9 +100,9 @@ jobs:
             -DCMAKE_BUILD_TYPE=Debug \
             -DLEXCPP_BUILD_FUZZ=ON -DLEXCPP_BUILD_TESTS=OFF
       - run: cmake --build build-fuzz -j
-      - run: ./build-fuzz/fuzz/fuzz_regex   -max_total_time=30
-      - run: ./build-fuzz/fuzz/fuzz_lfile   -max_total_time=30
-      - run: ./build-fuzz/fuzz/fuzz_runtime -max_total_time=30
+      - run: ./build-fuzz/bin/fuzz_regex   -max_total_time=30
+      - run: ./build-fuzz/bin/fuzz_lfile   -max_total_time=30
+      - run: ./build-fuzz/bin/fuzz_runtime -max_total_time=30
 
   reentrant-only:
     name: Reentrant smoke (clang)
@@ -186,8 +186,12 @@ jobs:
               cc -w -Wno-error=implicit-function-declaration /tmp/f.c -o /tmp/f
               input=/dev/null
               [ -f $d/input.txt ] && input=$d/input.txt
-              WINEDEBUG=-all wine /tmp/w.exe < $input > /tmp/wout 2>/dev/null
+              WINEDEBUG=-all wine /tmp/w.exe < $input > /tmp/wout.raw 2>/dev/null
               /tmp/f < $input > /tmp/fout
+              # Windows stdio writes "\r\n" for "\n" by default. The
+              # generated scanner uses stdio (it's flex-compatible C),
+              # so its yyout is text-mode under wine. Compare modulo CR.
+              tr -d '\r' < /tmp/wout.raw > /tmp/wout
               if ! cmp -s /tmp/wout /tmp/fout; then
                   echo "DIFFER (runtime): $case"
                   diff <(od -c /tmp/wout | head -5) <(od -c /tmp/fout | head -5)
