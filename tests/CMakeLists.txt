@@ -14,6 +14,12 @@ endif()
 # flex byte-for-byte.
 option(LEXCPP_LEX_READY "Compare lex output against flex (full differential)" OFF)
 
+# Force lex.cpp to a specific table-compression mode for the sweep:
+# empty (default), "-f", "-Cfe", or "-Cem". Passed as an extra flag
+# to the lex generation step only -- flex's side is unaffected.
+set(LEXCPP_TEST_COMPRESS "" CACHE STRING
+    "Extra compression flag passed to lex during testing (-f/-Cfe/-Cem)")
+
 include(${CMAKE_CURRENT_SOURCE_DIR}/differential.cmake)
 
 # Auto-discover test cases.

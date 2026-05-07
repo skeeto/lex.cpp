@@ -24,6 +24,7 @@ function(add_lex_diff_test name dir)
             -DLEX_LIB=$<TARGET_FILE:lex_lib>
             -DCC_EXE=${CMAKE_C_COMPILER}
             -DLEX_READY=${LEXCPP_LEX_READY}
+            -DLEX_EXTRA=${LEXCPP_TEST_COMPRESS}
             -P ${CMAKE_SOURCE_DIR}/tests/run_diff.cmake
     )
     set_tests_properties(${name} PROPERTIES TIMEOUT 60)

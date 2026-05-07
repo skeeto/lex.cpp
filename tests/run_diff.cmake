@@ -123,7 +123,21 @@ endif()
 
 # ---------------------------------------------------------------- lex side
 if(LEX_READY)
-    _generate_with(lex ${LEX_EXE} ${WORK_DIR}/lex_scanner.c)
+    set(_lex_args ${GEN_ARGS} -o ${WORK_DIR}/lex_scanner.c ${SCANNER_L})
+    if(LEX_EXTRA)
+        list(PREPEND _lex_args ${LEX_EXTRA})
+    endif()
+    execute_process(
+        COMMAND ${LEX_EXE} ${_lex_args}
+        WORKING_DIRECTORY ${WORK_DIR}
+        RESULT_VARIABLE rv
+        OUTPUT_VARIABLE out
+        ERROR_VARIABLE  err)
+    if(NOT rv EQUAL 0)
+        message(FATAL_ERROR
+            "${CASE_NAME}: lex generation failed (rc=${rv})\n"
+            "argv: ${LEX_EXE} ${_lex_args}\nstderr:\n${err}")
+    endif()
     _compile(${WORK_DIR}/lex_scanner.c ${WORK_DIR}/lex_scanner)
     _run(${WORK_DIR}/lex_scanner ${WORK_DIR}/lex.out lex_status)
 
