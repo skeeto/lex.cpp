@@ -229,6 +229,139 @@ std::string yylex_signature(const LexFile& f) {
     return s;
 }
 
+std::string yy_lex_body_reject(const LexFile& f, const NFA& nfa,
+                               const RuleMap& rm, bool line_directives) {
+    std::ostringstream s;
+    int nrules = (int)rm.total_nfa_rules;
+    if (nrules <= 0) nrules = 1;
+    s << yylex_signature(f) << " {\n";
+    if (f.options.bison_bridge)
+        s << "    YY_G->yylval_r = yylval_param;\n";
+    if (f.options.bison_locations)
+        s << "    YY_G->yylloc_r = yylloc_param;\n";
+    s << "    if (!yyin) yyin = stdin;\n";
+    s << "    if (!yyout) yyout = stdout;\n";
+    s << "    int yy_first = !yy_init_done;\n";
+    s << "    yy_init_default_buffer(YY_CALLPM);\n";
+    s << "    if (yy_first) {\n";
+    s << "        #ifdef YY_USER_INIT\n        YY_USER_INIT\n        #endif\n";
+    s << "    }\n";
+    s << "    int yy_match_lens[" << nrules << "];\n";
+    s << "    int yy_rule = -1;\n";
+    s << "    size_t yy_len = 0;\n";
+    s << "    size_t yy_base = 0;\n";
+    s << "    for (;;) {\n";
+    s << "        yy_text_unseal(YY_CALLPM);\n";
+    s << "        if (yy_buf_pos >= yy_buf_end) {\n";
+    s << "            yytext = yy_buf + yy_buf_pos;\n";
+    s << "            yyleng = 0;\n";
+    s << "            yy_text_save = 0;\n";
+    s << "            yy_text_active = 1;\n";
+    s << "            ";
+    {
+        std::string eof;
+        emit_eof_dispatch(eof, f, nfa);
+        s << eof;
+    }
+    s << "            (void)yy_rule; return 0;\n";
+    s << "        }\n";
+    s << "        for (int r = 0; r < " << nrules << "; ++r) yy_match_lens[r] = -1;\n";
+    s << "        yy_base = yy_buf_pos;\n";
+    s << "        size_t yy_scan = yy_base;\n";
+    s << "        int yy_state = yy_at_bol ? yy_cond_bol[yy_start] : yy_cond_normal[yy_start];\n";
+    s << "        {\n";
+    s << "            int yy_off = yy_accept_off[yy_state];\n";
+    s << "            int yy_n   = yy_accept_off[yy_state + 1] - yy_off;\n";
+    s << "            for (int i = 0; i < yy_n; ++i) {\n";
+    s << "                int r = yy_accept_pool[yy_off + i];\n";
+    s << "                if (yy_match_lens[r] < 0) yy_match_lens[r] = 0;\n";
+    s << "            }\n";
+    s << "        }\n";
+    s << "        while (yy_scan < yy_buf_end) {\n";
+    s << "            unsigned char yy_c = (unsigned char)yy_buf[yy_scan];\n";
+    s << "            int yy_next = yy_nxt[yy_state][yy_c];\n";
+    s << "            if (yy_next < 0) break;\n";
+    s << "            yy_state = yy_next;\n";
+    s << "            yy_scan++;\n";
+    s << "            int yy_off = yy_accept_off[yy_state];\n";
+    s << "            int yy_n   = yy_accept_off[yy_state + 1] - yy_off;\n";
+    s << "            for (int i = 0; i < yy_n; ++i) {\n";
+    s << "                int r = yy_accept_pool[yy_off + i];\n";
+    s << "                int cur = (int)(yy_scan - yy_base);\n";
+    s << "                if (yy_match_lens[r] < cur) yy_match_lens[r] = cur;\n";
+    s << "            }\n";
+    s << "        }\n";
+    s << "    yy_find_best:\n";
+    s << "        yy_rule = -1; yy_len = 0;\n";
+    s << "        for (int r = 0; r < " << nrules << "; ++r) {\n";
+    s << "            if (yy_match_lens[r] >= 0) {\n";
+    s << "                size_t L = (size_t)yy_match_lens[r];\n";
+    s << "                if (yy_rule < 0 || L > yy_len) { yy_rule = r; yy_len = L; }\n";
+    s << "            }\n";
+    s << "        }\n";
+    s << "        if (yy_rule < 0 || yy_len == 0) {\n";
+    if (f.options.nodefault) {
+        s << "            fprintf(stderr, \"scanner jammed\\n\"); exit(2);\n";
+    } else {
+        s << "            if (yy_buf_pos < yy_buf_end) {\n";
+        s << "                unsigned char yy_d = (unsigned char)yy_buf[yy_buf_pos++];\n";
+        s << "                (void)fputc((int)yy_d, yyout);\n";
+        if (f.options.yylineno) s << "                if (yy_d == '\\n') yylineno++;\n";
+        s << "                yy_at_bol = (yy_d == '\\n');\n";
+        s << "            }\n";
+        s << "            continue;\n";
+    }
+    s << "        }\n";
+    s << "        yytext = yy_buf + yy_base;\n";
+    s << "        {\n";
+    s << "            int yy_trail = yy_rule_trail_len[yy_rule];\n";
+    s << "            if (yy_trail > 0 && (size_t)yy_trail <= yy_len) yy_len -= (size_t)yy_trail;\n";
+    s << "        }\n";
+    s << "        yyleng = (int)yy_len;\n";
+    s << "        yy_text_save = yytext[yy_len];\n";
+    s << "        yytext[yy_len] = 0;\n";
+    s << "        yy_text_active = 1;\n";
+    s << "        yy_buf_pos = yy_base + yy_len;\n";
+    if (f.options.yylineno) {
+        s << "        for (size_t yy_i = 0; yy_i < yy_len; ++yy_i)\n";
+        s << "            if (yytext[yy_i] == '\\n') yylineno++;\n";
+    }
+    s << "        yy_at_bol = (yy_len > 0 && yytext[yy_len - 1] == '\\n');\n";
+    s << "        #ifdef YY_USER_ACTION\n";
+    s << "        YY_USER_ACTION\n";
+    s << "        #endif\n";
+    s << "#define REJECT  do {                                                  \\\n";
+    s << "    yy_match_lens[yy_rule] = -1;                                       \\\n";
+    s << "    yytext[yyleng] = yy_text_save;                                     \\\n";
+    s << "    yy_text_active = 0;                                                \\\n";
+    s << "    yy_buf_pos = yy_base;                                              \\\n";
+    s << "    goto yy_find_best;                                                 \\\n";
+    s << "} while (0)\n";
+    s << "        switch (yy_rule) {\n";
+    auto tgt = resolve_pipe_targets(f);
+    (void)tgt;
+    for (std::size_t i = 0; i < f.rules.size(); ++i) {
+        if (f.rules[i].eof) continue;
+        s << "            case " << rm.nfa_id[i] << ":";
+        if (f.rules[i].action == "|") {
+            s << " /* fall through */\n";
+            continue;
+        }
+        s << " {\n";
+        std::string ld;
+        emit_line_directive(ld, f.rules[i].loc.file, f.rules[i].loc.line, line_directives);
+        s << ld;
+        s << f.rules[i].action;
+        s << "\n            } break;\n";
+    }
+    s << "            default: break;\n";
+    s << "        }\n";
+    s << "#undef REJECT\n";
+    s << "    }\n";
+    s << "}\n";
+    return s.str();
+}
+
 std::string yy_lex_body(const LexFile& f, const DFA& dfa, const NFA& nfa,
                         const RuleMap& rm, bool line_directives) {
     (void)dfa;
@@ -459,6 +592,21 @@ std::string emit_c(const CodegenInput& in) {
         for (auto t : nfa.rule_trail) tr.push_back(t);
         if (tr.empty()) tr.push_back(0);
         append_int_array(out, "yy_rule_trail_len", "int", tr);
+
+        // REJECT support: full per-state accept lists.
+        if (f.options.uses_reject) {
+            std::vector<long long> off;
+            std::vector<long long> pool;
+            off.reserve(d.states.size() + 1);
+            for (const auto& st : d.states) {
+                off.push_back((long long)pool.size());
+                for (auto r : st.accept_list) pool.push_back(r);
+            }
+            off.push_back((long long)pool.size());
+            if (pool.empty()) pool.push_back(0);
+            append_int_array(out, "yy_accept_off",  "int", off);
+            append_int_array(out, "yy_accept_pool", "int", pool);
+        }
     }
     out += "\n";
 
@@ -476,7 +624,11 @@ std::string emit_c(const CodegenInput& in) {
         out += "#define yylloc ((YYLTYPE*)YY_G->yylloc_r)\n";
 
     // yylex with action dispatch.
-    out += yy_lex_body(f, d, nfa, rm, in.emit_line_directives);
+    if (f.options.uses_reject) {
+        out += yy_lex_body_reject(f, nfa, rm, in.emit_line_directives);
+    } else {
+        out += yy_lex_body(f, d, nfa, rm, in.emit_line_directives);
+    }
     out += "\n";
 
     // yywrap default if requested.

@@ -15,6 +15,9 @@ struct DFAState {
     std::int32_t accept_normal = -1;
     // Earliest accepting rule id whose pattern ends with $ anchor; -1 if none.
     std::int32_t accept_eol    = -1;
+    // All accepting rules in this state's NFA-set, sorted ASC. Used for
+    // REJECT.
+    std::vector<std::int32_t> accept_list;
 };
 
 struct DFAStart {

@@ -171,6 +171,29 @@ int main(int argc, char** argv) {
     if (args.nodefault)        file.options.nodefault = true;
     if (args.prefix_set)       file.options.prefix = args.prefix;
 
+    // Scan all action bodies for the REJECT keyword (whole word).
+    auto contains_word = [](const std::string& s, std::string_view word) {
+        std::size_t pos = 0;
+        while ((pos = s.find(word, pos)) != std::string::npos) {
+            bool lb = pos == 0 ||
+                !(std::isalnum(static_cast<unsigned char>(s[pos - 1])) ||
+                  s[pos - 1] == '_');
+            std::size_t end = pos + word.size();
+            bool rb = end >= s.size() ||
+                !(std::isalnum(static_cast<unsigned char>(s[end])) ||
+                  s[end] == '_');
+            if (lb && rb) return true;
+            pos = end;
+        }
+        return false;
+    };
+    for (const auto& r : file.rules) {
+        if (contains_word(r.action, "REJECT")) {
+            file.options.uses_reject = true;
+            break;
+        }
+    }
+
     // Build NFA.
     std::vector<std::string> cond_names{"INITIAL"};
     std::vector<std::uint8_t> cond_excl{0};

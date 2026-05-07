@@ -46,17 +46,25 @@ StateSet step(const NFA& nfa, const StateSet& set, unsigned byte) {
 struct AcceptPair {
     std::int32_t normal = -1;
     std::int32_t eol    = -1;
+    std::vector<std::int32_t> list;     // sorted ASC, deduped
 };
 
 AcceptPair accept_for(const NFA& nfa, const StateSet& set) {
     AcceptPair p;
+    std::vector<std::int32_t> rules;
     for (auto s : set) {
         auto r = nfa.states[static_cast<std::size_t>(s)].accept_rule;
         if (r < 0) continue;
+        rules.push_back(r);
+    }
+    std::sort(rules.begin(), rules.end());
+    rules.erase(std::unique(rules.begin(), rules.end()), rules.end());
+    for (auto r : rules) {
         bool is_eol = nfa.rule_eol[static_cast<std::size_t>(r)] != 0;
         std::int32_t& slot = is_eol ? p.eol : p.normal;
         if (slot < 0 || r < slot) slot = r;
     }
+    p.list = std::move(rules);
     return p;
 }
 
@@ -101,6 +109,7 @@ DFA build_dfa(const NFA& nfa) {
         auto ap = accept_for(nfa, k.v);
         s.accept_normal = ap.normal;
         s.accept_eol    = ap.eol;
+        s.accept_list   = std::move(ap.list);
         dfa.states.push_back(s);
         id_to_set.push_back(k.v);
         index.emplace(std::move(k), id);
