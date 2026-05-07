@@ -275,6 +275,7 @@ int main(int argc, char** argv) {
     cg.output_path = args.to_stdout ? std::string("<stdout>") : args.output_path;
     cg.emit_line_directives = !args.noline;
     cg.compress = args.compress;
+    cg.emit_tables_loader = !args.tables_path.empty();
     auto out = lexcpp::emit_c(cg);
 
     if (args.to_stdout) {

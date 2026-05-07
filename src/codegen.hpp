@@ -21,6 +21,9 @@ struct CodegenInput {
     std::string    output_path;            // e.g. "lex.yy.c"
     bool           emit_line_directives = true;
     CompressMode   compress = CompressMode::Compress;
+    // When set, tables are emitted non-const and yytables_fload is
+    // provided so the user can swap them out at runtime.
+    bool           emit_tables_loader = false;
 };
 
 [[nodiscard]] std::string emit_c(const CodegenInput& in);
