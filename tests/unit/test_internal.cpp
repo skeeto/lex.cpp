@@ -354,6 +354,27 @@ void test_header_reentrant() {
     CHECK(h.find("extern char *yytext") == std::string::npos);
 }
 
+void test_meta_classes() {
+    std::fprintf(stderr, "test_meta_classes\n");
+    // A grammar where two classes (lower-case letters and underscore)
+    // would behave identically across the DFA after EC reduction:
+    // pattern [a-z_]+ collapses them.
+    lexcpp::Diagnostics d;
+    auto file = lexcpp::parse_lex_file("<t>",
+        "%option noyywrap\n%%\n[a-z_]+ ECHO;\n%%\n", d);
+    CHECK(file.has_value());
+    lexcpp::NFA nfa;
+    lexcpp::init_nfa(nfa, {"INITIAL"}, {0});
+    auto resolver = [](std::string_view) -> std::optional<std::string> {
+        return std::nullopt;
+    };
+    auto t = lexcpp::parse_regex("[a-z_]+", resolver, false, d, {});
+    lexcpp::add_rule_to_nfa(nfa, t.get(), 0, {});
+    auto dfa = lexcpp::build_dfa(nfa, /*ec=*/true, /*meta=*/true);
+    CHECK(dfa.nmeta > 0);
+    CHECK(dfa.nmeta <= dfa.nclasses);   // meta should never grow alphabet
+}
+
 void test_top_block() {
     std::fprintf(stderr, "test_top_block\n");
     lexcpp::Diagnostics d;
@@ -434,6 +455,7 @@ int main() {
     test_start_cond_decl();
     test_reentrant_option();
     test_bison_bridge_option();
+    test_meta_classes();
     test_top_block();
     test_header_emit();
     test_header_reentrant();

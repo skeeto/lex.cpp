@@ -30,10 +30,18 @@ struct DFA {
     std::vector<DFAStart> cond_starts;        // per condition id
     Eclasses eclasses;                        // byte -> class id
     int nclasses = 256;                       // == eclasses.nclasses
+
+    // Meta-equivalence classes: classes that produce identical
+    // transitions in every DFA state are fused. Populated only when
+    // build_dfa is asked to compute it. yy_meta[c] = meta-class id.
+    std::vector<std::uint8_t> meta;            // empty if not computed
+    int nmeta = 0;
 };
 
 // Build a DFA. With use_eclasses=false, the alphabet stays at 256 bytes
 // (yy_ec is identity). Otherwise compute equivalence classes first.
-DFA build_dfa(const NFA& nfa, bool use_eclasses = false);
+// If compute_meta is true, also fill in DFA::meta after construction.
+DFA build_dfa(const NFA& nfa, bool use_eclasses = false,
+              bool compute_meta = false);
 
 } // namespace lexcpp

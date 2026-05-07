@@ -97,7 +97,40 @@ std::vector<unsigned> class_reps(const Eclasses& ec) {
 
 } // namespace
 
-DFA build_dfa(const NFA& nfa, bool use_eclasses) {
+namespace {
+
+void compute_meta_classes(DFA& dfa) {
+    int nc = dfa.nclasses;
+    dfa.meta.assign(static_cast<std::size_t>(nc), 0);
+
+    // Build per-class signature: concatenation of next[c] across states.
+    // Two classes share a meta if their column vectors are identical.
+    std::vector<std::vector<std::int32_t>> col(static_cast<std::size_t>(nc));
+    for (auto& v : col) v.reserve(dfa.states.size());
+    for (const auto& st : dfa.states) {
+        for (int c = 0; c < nc; ++c) {
+            col[static_cast<std::size_t>(c)].push_back(
+                st.next[static_cast<std::size_t>(c)]);
+        }
+    }
+    std::map<std::vector<std::int32_t>, std::uint8_t> seen;
+    int next_id = 0;
+    for (int c = 0; c < nc; ++c) {
+        auto it = seen.find(col[static_cast<std::size_t>(c)]);
+        if (it != seen.end()) {
+            dfa.meta[static_cast<std::size_t>(c)] = it->second;
+        } else {
+            std::uint8_t id = static_cast<std::uint8_t>(next_id++);
+            dfa.meta[static_cast<std::size_t>(c)] = id;
+            seen.emplace(col[static_cast<std::size_t>(c)], id);
+        }
+    }
+    dfa.nmeta = next_id;
+}
+
+} // namespace
+
+DFA build_dfa(const NFA& nfa, bool use_eclasses, bool compute_meta) {
     DFA dfa;
     dfa.eclasses = use_eclasses ? compute_eclasses(nfa) : identity_eclasses();
     dfa.nclasses = dfa.eclasses.nclasses;
@@ -166,6 +199,7 @@ DFA build_dfa(const NFA& nfa, bool use_eclasses) {
         }
     }
 
+    if (compute_meta) compute_meta_classes(dfa);
     return dfa;
 }
 
