@@ -20,6 +20,16 @@ if(NOT EXISTS ${SCANNER_L})
     message(FATAL_ERROR "${CASE_NAME}: ${SCANNER_L} does not exist")
 endif()
 
+# Multi-input form: a case directory may contain extra parts named
+# scanner.2.l, scanner.3.l, ... which are appended to scanner.l (in
+# numeric order) on both flex's and lex's command lines.
+set(EXTRA_SCANNERS "")
+file(GLOB _extras LIST_DIRECTORIES false ${CASE_DIR}/scanner.*.l)
+if(_extras)
+    list(SORT _extras)
+    set(EXTRA_SCANNERS ${_extras})
+endif()
+
 set(INPUT_FILE ${CASE_DIR}/input.txt)
 if(NOT EXISTS ${INPUT_FILE})
     set(INPUT_FILE ${WORK_DIR}/empty_input.txt)
@@ -62,7 +72,7 @@ function(_run_or_die label cmd)
 endfunction()
 
 function(_generate_with engine engine_path c_out)
-    set(_args ${GEN_ARGS} -o ${c_out} ${SCANNER_L})
+    set(_args ${GEN_ARGS} -o ${c_out} ${SCANNER_L} ${EXTRA_SCANNERS})
     execute_process(
         COMMAND ${engine_path} ${_args}
         WORKING_DIRECTORY ${WORK_DIR}
@@ -132,7 +142,7 @@ endif()
 
 # ---------------------------------------------------------------- lex side
 if(LEX_READY)
-    set(_lex_args ${GEN_ARGS} -o ${WORK_DIR}/lex_scanner.c ${SCANNER_L})
+    set(_lex_args ${GEN_ARGS} -o ${WORK_DIR}/lex_scanner.c ${SCANNER_L} ${EXTRA_SCANNERS})
     if(LEX_EXTRA)
         list(PREPEND _lex_args ${LEX_EXTRA})
     endif()

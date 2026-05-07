@@ -37,12 +37,13 @@ constexpr std::string_view kUsage =
     "  -h, --help                show this help and exit\n"
     "  -V, --version             show version and exit\n"
     "\n"
-    "If FILE is omitted or '-', lex reads stdin.\n";
+    "If FILE is omitted or '-', lex reads stdin.\n"
+    "Multiple FILEs are concatenated in order before parsing.\n";
 
 struct Args {
     std::string output_path;
     std::string prefix;
-    std::string input_path;
+    std::vector<std::string> input_paths;
     bool to_stdout = false;
     bool case_insensitive = false;
     bool yylineno = false;
@@ -108,16 +109,12 @@ int parse_args(int argc, const std::string_view* argv, Args& out,
             out.prefix = std::string(a.substr(9));
             out.prefix_set = true;
         } else if (a == "--") {
-            if (++i < argc) out.input_path = std::string(argv[i]);
+            while (++i < argc) out.input_paths.emplace_back(argv[i]);
         } else if (!a.empty() && a[0] == '-' && a != "-") {
             diag.error({}, "unknown option: " + std::string(a));
             return 2;
         } else {
-            if (!out.input_path.empty()) {
-                diag.error({}, "multiple input files are not supported");
-                return 2;
-            }
-            out.input_path = std::string(a);
+            out.input_paths.emplace_back(a);
         }
     }
     if (out.output_path.empty() && !out.to_stdout)
@@ -166,17 +163,29 @@ int core_main(int argc, const std::string_view* argv) {
 
     std::string source;
     std::string source_label;
-    if (args.input_path.empty() || args.input_path == "-") {
+    if (args.input_paths.empty() ||
+        (args.input_paths.size() == 1 && args.input_paths[0] == "-")) {
         source_label = "<stdin>";
         source = lexcpp::platform::slurp(lexcpp::platform::stdin_stream());
     } else {
-        source_label = args.input_path;
-        auto in = lexcpp::platform::open_read(args.input_path);
-        if (!in.ok()) {
-            diag.error({}, "cannot open " + args.input_path);
-            return 1;
+        source_label = args.input_paths[0];
+        for (std::size_t i = 0; i < args.input_paths.size(); ++i) {
+            const auto& path = args.input_paths[i];
+            std::string chunk;
+            if (path == "-") {
+                chunk = lexcpp::platform::slurp(lexcpp::platform::stdin_stream());
+            } else {
+                auto in = lexcpp::platform::open_read(path);
+                if (!in.ok()) {
+                    diag.error({}, "cannot open " + path);
+                    return 1;
+                }
+                chunk = lexcpp::platform::slurp(in);
+            }
+            if (i > 0 && !source.empty() && source.back() != '\n')
+                source.push_back('\n');
+            source.append(chunk);
         }
-        source = lexcpp::platform::slurp(in);
     }
     normalise_source(source);
 
