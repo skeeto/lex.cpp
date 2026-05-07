@@ -199,7 +199,13 @@ std::string yy_lex_body(const LexFile& f, const DFA& dfa, const NFA& nfa,
         s << "    YY_G->yylloc_r = yylloc_param;\n";
     s << "    if (!yyin) yyin = stdin;\n";
     s << "    if (!yyout) yyout = stdout;\n";
+    s << "    int yy_first = !yy_init_done;\n";
     s << "    yy_init_default_buffer(YY_CALLPM);\n";
+    s << "    if (yy_first) {\n";
+    s << "        #ifdef YY_USER_INIT\n";
+    s << "        YY_USER_INIT\n";
+    s << "        #endif\n";
+    s << "    }\n";
     s << "    for (;;) {\n";
     s << "        yy_text_unseal(YY_CALLPM);\n";
     s << "        if (yy_buf_pos >= yy_buf_end) {\n";
@@ -289,6 +295,9 @@ std::string yy_lex_body(const LexFile& f, const DFA& dfa, const NFA& nfa,
         s << "            if (yytext[yy_i] == '\\n') yylineno++;\n";
     }
     s << "        yy_at_bol = (yy_len > 0 && yytext[yy_len - 1] == '\\n');\n";
+    s << "        #ifdef YY_USER_ACTION\n";
+    s << "        YY_USER_ACTION\n";
+    s << "        #endif\n";
 
     {
         std::string disp;
