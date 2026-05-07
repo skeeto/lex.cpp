@@ -43,7 +43,7 @@ std::wstring utf8_to_wide(std::string_view s) {
     return out;
 }
 
-std::string wide_to_utf8(std::wstring_view s) {
+[[maybe_unused]] std::string wide_to_utf8(std::wstring_view s) {
     if (s.empty()) return {};
     int n = WideCharToMultiByte(CP_UTF8, 0, s.data(),
                                 static_cast<int>(s.size()),

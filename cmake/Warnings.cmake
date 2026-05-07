@@ -13,10 +13,15 @@ else()
     target_compile_options(lexcpp_warnings INTERFACE
         -Wall -Wextra -Wpedantic
         -Wshadow -Wconversion -Wsign-conversion
-        -Wold-style-cast -Wcast-align
-        -Wnon-virtual-dtor -Woverloaded-virtual
+        -Wcast-align
         -Wnull-dereference -Wdouble-promotion
         -Wformat=2)
+    # C++-only flags: gated so C TUs (lib/yywrap.c, lib/main.c) don't
+    # warn about unrecognised options.
+    target_compile_options(lexcpp_warnings INTERFACE
+        $<$<COMPILE_LANGUAGE:CXX>:-Wold-style-cast>
+        $<$<COMPILE_LANGUAGE:CXX>:-Wnon-virtual-dtor>
+        $<$<COMPILE_LANGUAGE:CXX>:-Woverloaded-virtual>)
     if(LEXCPP_WERROR)
         target_compile_options(lexcpp_warnings INTERFACE -Werror)
     endif()
