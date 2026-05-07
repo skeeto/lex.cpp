@@ -172,16 +172,36 @@ void emit_eof_dispatch(std::string& out, const LexFile& f, const NFA& nfa) {
     out += "}\n";
 }
 
+std::string yylex_signature(const LexFile& f) {
+    std::string s = "int yylex(";
+    bool first = true;
+    auto add = [&](std::string_view a) {
+        if (!first) s += ", ";
+        s += a;
+        first = false;
+    };
+    if (f.options.bison_bridge)    add("YYSTYPE *yylval_param");
+    if (f.options.bison_locations) add("YYLTYPE *yylloc_param");
+    if (f.options.reentrant)       add("yyscan_t yyscanner");
+    if (first) s += "void";
+    s += ")";
+    return s;
+}
+
 std::string yy_lex_body(const LexFile& f, const DFA& dfa, const NFA& nfa,
                         const RuleMap& rm) {
     (void)dfa;
     std::ostringstream s;
-    s << "int yylex(void) {\n";
+    s << yylex_signature(f) << " {\n";
+    if (f.options.bison_bridge)
+        s << "    YY_G->yylval_r = yylval_param;\n";
+    if (f.options.bison_locations)
+        s << "    YY_G->yylloc_r = yylloc_param;\n";
     s << "    if (!yyin) yyin = stdin;\n";
     s << "    if (!yyout) yyout = stdout;\n";
-    s << "    yy_init_default_buffer();\n";
+    s << "    yy_init_default_buffer(YY_CALLPM);\n";
     s << "    for (;;) {\n";
-    s << "        yy_text_unseal();\n";
+    s << "        yy_text_unseal(YY_CALLPM);\n";
     s << "        if (yy_buf_pos >= yy_buf_end) {\n";
     s << "            int yy_rule = -1;\n";
     s << "            yytext = yy_buf + yy_buf_pos;\n";
@@ -300,6 +320,17 @@ std::string emit_c(const CodegenInput& in) {
     out += "#include <stdlib.h>\n";
     out += "#include <string.h>\n\n";
 
+    // Reentrant toggle (must precede the typedefs below).
+    out += "#define YY_REENTRANT ";
+    out += (f.options.reentrant ? "1" : "0");
+    out += "\n";
+
+    // Forward typedefs so user code in %{ ... %} can name yyscan_t.
+    out += "typedef struct yy_buffer_state *YY_BUFFER_STATE;\n";
+    if (f.options.reentrant)
+        out += "typedef struct yyguts_t *yyscan_t;\n";
+    out += "\n";
+
     // User %{ %} block(s)
     if (!f.section1_verbatim.empty()) {
         out += "/* user prologue */\n";
@@ -316,7 +347,12 @@ std::string emit_c(const CodegenInput& in) {
     // Track-yylineno toggle for the runtime helpers.
     out += "#define YY_TRACK_LINENO ";
     out += (f.options.yylineno ? "1" : "0");
-    out += "\n\n";
+    out += "\n";
+    // Extra-type for yyextra (default void*).
+    out += "#ifndef YY_EXTRA_TYPE\n";
+    out += "#define YY_EXTRA_TYPE ";
+    out += (f.options.extra_type.empty() ? "void *" : f.options.extra_type);
+    out += "\n#endif\n\n";
 
     // Tables.
     {
@@ -355,13 +391,23 @@ std::string emit_c(const CodegenInput& in) {
     if (out.back() != '\n') out += "\n";
     out += "\n";
 
+    // Bison-bridge: yylval is the *pointer* (matches flex). Users write
+    // yylval->field. Outside yylex, callers use yyget_lval(scanner).
+    if (f.options.bison_bridge)
+        out += "#define yylval ((YYSTYPE*)YY_G->yylval_r)\n";
+    if (f.options.bison_locations)
+        out += "#define yylloc ((YYLTYPE*)YY_G->yylloc_r)\n";
+
     // yylex with action dispatch.
     out += yy_lex_body(f, d, nfa, rm);
     out += "\n";
 
     // yywrap default if requested.
     if (f.options.noyywrap) {
-        out += "int yywrap(void) { return 1; }\n\n";
+        if (f.options.reentrant)
+            out += "int yywrap(yyscan_t s) { (void)s; return 1; }\n\n";
+        else
+            out += "int yywrap(void) { return 1; }\n\n";
     }
 
     // User epilogue.

@@ -1,26 +1,73 @@
-/* lex.cpp runtime helpers. Embedded into the generated scanner. */
+/* lex.cpp runtime helpers. Embedded into the generated scanner.
+ *
+ * The runtime is *always* organised around a yyguts_t struct. In
+ * non-reentrant mode (the default), all state lives in a single
+ * static instance and the public yytext/yyleng/etc. are real globals
+ * that point at the struct. In reentrant mode (%option reentrant),
+ * yyscan_t is a pointer to a heap-allocated yyguts_t; everything
+ * goes through it, no globals. The macro YY_REENTRANT (defined by
+ * codegen) selects between the two views.
+ */
 
 #define YY_BUF_SIZE 16384
 
-typedef struct yy_buffer_state {
-    FILE   *yy_input_file;     /* NULL for in-memory string buffers */
-    char   *yy_buf;            /* size yy_buf_size+2; ends with two NULs */
-    size_t  yy_buf_size;       /* byte capacity (excluding the two-NUL guard) */
-    size_t  yy_buf_pos;        /* next byte to read */
-    size_t  yy_buf_end;        /* count of valid bytes */
-    int     yy_at_bol;
-    int     yy_done;           /* exhausted yy_input_file (or in-memory exhausted) */
-    int     yy_is_our_buffer;  /* free yy_buf on delete? */
-    int     yy_is_interactive; /* unused -- accepted for compat */
-} yy_buffer_state, *YY_BUFFER_STATE;
+/* YY_BUFFER_STATE typedef is forward-declared by codegen above. */
+struct yy_buffer_state {
+    FILE   *yy_input_file;
+    char   *yyb_data;          /* renamed from yy_buf to avoid macro collision */
+    size_t  yyb_size;          /* yy_buf_size  */
+    size_t  yyb_pos;           /* yy_buf_pos   */
+    size_t  yyb_end;           /* yy_buf_end   */
+    int     yyb_at_bol;        /* yy_at_bol    */
+    int     yyb_done;          /* yy_done      */
+    int     yy_is_our_buffer;
+    int     yy_is_interactive;
+};
 
-static YY_BUFFER_STATE *yy_buffer_stack    = 0;
-static size_t           yy_buffer_stack_max = 0;
-static size_t           yy_buffer_stack_top = 0;
+struct yyguts_t {
+    YY_BUFFER_STATE *yy_buffer_stack_r;
+    size_t           yy_buffer_stack_max_r;
+    size_t           yy_buffer_stack_top_r;
+    char            *yytext_r;
+    int              yyleng_r;
+    int              yylineno_r;
+    FILE            *yyin_r;
+    FILE            *yyout_r;
+    int              yy_start_r;
+    char             yy_text_save_r;
+    int              yy_text_active_r;
+    int              yy_init_done_r;
+    void            *yyextra_r;
+    void            *yylval_r;     /* bison-bridge: YYSTYPE*  */
+    void            *yylloc_r;     /* bison-locations: YYLTYPE* */
+};
+typedef struct yyguts_t yyguts_t;
 
-#define YY_CURRENT_BUFFER \
-    (yy_buffer_stack ? yy_buffer_stack[yy_buffer_stack_top] : (YY_BUFFER_STATE)0)
-#define YY_CURRENT_BUFFER_LVALUE  yy_buffer_stack[yy_buffer_stack_top]
+#if YY_REENTRANT
+/* yyscan_t is typedef'd by codegen forward decl. */
+#define YY_G          ((yyguts_t*)yyscanner)
+#define YY_DECLPM     yyscan_t yyscanner
+#define YY_DECLPM_C   , yyscan_t yyscanner
+#define YY_CALLPM     yyscanner
+#define YY_CALLPM_C   , yyscanner
+
+/* In reentrant mode, the public yy* names resolve through the
+   parameter. They are macros, so an `extern char *yytext;` in user
+   code is a compile error -- as it should be. */
+#define yytext         (YY_G->yytext_r)
+#define yyleng         (YY_G->yyleng_r)
+#define yylineno       (YY_G->yylineno_r)
+#define yyin           (YY_G->yyin_r)
+#define yyout          (YY_G->yyout_r)
+
+#else
+/* Non-reentrant: real globals. */
+static yyguts_t yy_global_guts_;
+#define YY_G          (&yy_global_guts_)
+#define YY_DECLPM     void
+#define YY_DECLPM_C
+#define YY_CALLPM
+#define YY_CALLPM_C
 
 char *yytext   = 0;
 int   yyleng   = 0;
@@ -28,15 +75,34 @@ int   yylineno = 1;
 FILE *yyin     = 0;
 FILE *yyout    = 0;
 
-static int  yy_start        = 0;
-static char yy_text_save    = 0;
-static int  yy_text_active  = 0;
+/* Within helper bodies the yy* names need to refer to the same storage
+   as the public globals. In non-reentrant mode YY_G->yytext_r is
+   unused; we keep the public globals authoritative and the helpers
+   read/write them directly. The yyguts_t struct in this mode only
+   carries members that have no public alias (yy_start, yy_text_save,
+   etc.). The names below are the public globals. */
+#endif
 
+/* Internal state names. These resolve to YY_G->...; same in both modes. */
+#define yy_start              (YY_G->yy_start_r)
+#define yy_text_save          (YY_G->yy_text_save_r)
+#define yy_text_active        (YY_G->yy_text_active_r)
+#define yy_buffer_stack       (YY_G->yy_buffer_stack_r)
+#define yy_buffer_stack_max   (YY_G->yy_buffer_stack_max_r)
+#define yy_buffer_stack_top   (YY_G->yy_buffer_stack_top_r)
+#define yy_init_done          (YY_G->yy_init_done_r)
+
+#define YY_CURRENT_BUFFER \
+    (yy_buffer_stack ? yy_buffer_stack[yy_buffer_stack_top] : (YY_BUFFER_STATE)0)
+#define YY_CURRENT_BUFFER_LVALUE  yy_buffer_stack[yy_buffer_stack_top]
+
+#if !YY_REENTRANT
 extern int yywrap(void);
+#endif
 
 /* ---- buffer-stack management --------------------------------------- */
 
-static void yyensure_buffer_stack(void) {
+static void yyensure_buffer_stack(YY_DECLPM) {
     if (!yy_buffer_stack) {
         yy_buffer_stack_max = 1;
         yy_buffer_stack = (YY_BUFFER_STATE*)
@@ -48,7 +114,7 @@ static void yyensure_buffer_stack(void) {
     }
 }
 
-static void yy_grow_stack(void) {
+static void yy_grow_stack(YY_DECLPM) {
     size_t new_max = yy_buffer_stack_max ? yy_buffer_stack_max * 2 : 4;
     YY_BUFFER_STATE *p = (YY_BUFFER_STATE*)
         realloc(yy_buffer_stack, new_max * sizeof(YY_BUFFER_STATE));
@@ -58,61 +124,61 @@ static void yy_grow_stack(void) {
     yy_buffer_stack_max = new_max;
 }
 
-YY_BUFFER_STATE yy_create_buffer(FILE *file, int size) {
+YY_BUFFER_STATE yy_create_buffer(FILE *file, int size YY_DECLPM_C) {
     YY_BUFFER_STATE b = (YY_BUFFER_STATE)calloc(1, sizeof(*b));
     if (!b) return 0;
-    b->yy_buf_size = (size > 0) ? (size_t)size : YY_BUF_SIZE;
-    b->yy_buf = (char*)malloc(b->yy_buf_size + 2);
-    if (!b->yy_buf) { free(b); return 0; }
-    b->yy_buf[0] = 0;
-    b->yy_buf[1] = 0;
+    b->yyb_size = (size > 0) ? (size_t)size : YY_BUF_SIZE;
+    b->yyb_data = (char*)malloc(b->yyb_size + 2);
+    if (!b->yyb_data) { free(b); return 0; }
+    b->yyb_data[0] = 0;
+    b->yyb_data[1] = 0;
     b->yy_input_file     = file;
-    b->yy_at_bol         = 1;
-    b->yy_done           = 0;
-    b->yy_buf_pos        = 0;
-    b->yy_buf_end        = 0;
+    b->yyb_at_bol         = 1;
+    b->yyb_done           = 0;
+    b->yyb_pos        = 0;
+    b->yyb_end        = 0;
     b->yy_is_our_buffer  = 1;
     return b;
 }
 
-void yy_delete_buffer(YY_BUFFER_STATE b) {
+void yy_delete_buffer(YY_BUFFER_STATE b YY_DECLPM_C) {
     if (!b) return;
-    if (b->yy_is_our_buffer) free(b->yy_buf);
+    if (b->yy_is_our_buffer) free(b->yyb_data);
     free(b);
 }
 
-void yy_flush_buffer(YY_BUFFER_STATE b) {
+void yy_flush_buffer(YY_BUFFER_STATE b YY_DECLPM_C) {
     if (!b) return;
-    b->yy_buf_pos = 0;
-    b->yy_buf_end = 0;
-    b->yy_done    = (b->yy_input_file == 0) ? 1 : 0;
-    b->yy_at_bol  = 1;
-    if (b->yy_buf) {
-        b->yy_buf[0] = 0;
-        b->yy_buf[1] = 0;
+    b->yyb_pos = 0;
+    b->yyb_end = 0;
+    b->yyb_done    = (b->yy_input_file == 0) ? 1 : 0;
+    b->yyb_at_bol  = 1;
+    if (b->yyb_data) {
+        b->yyb_data[0] = 0;
+        b->yyb_data[1] = 0;
     }
 }
 
-void yy_switch_to_buffer(YY_BUFFER_STATE b) {
-    yyensure_buffer_stack();
+void yy_switch_to_buffer(YY_BUFFER_STATE b YY_DECLPM_C) {
+    yyensure_buffer_stack(YY_CALLPM);
     if (YY_CURRENT_BUFFER == b) return;
     YY_CURRENT_BUFFER_LVALUE = b;
     if (b) yyin = b->yy_input_file;
 }
 
-void yypush_buffer_state(YY_BUFFER_STATE b) {
-    yyensure_buffer_stack();
+void yypush_buffer_state(YY_BUFFER_STATE b YY_DECLPM_C) {
+    yyensure_buffer_stack(YY_CALLPM);
     if (YY_CURRENT_BUFFER) {
         ++yy_buffer_stack_top;
-        if (yy_buffer_stack_top >= yy_buffer_stack_max) yy_grow_stack();
+        if (yy_buffer_stack_top >= yy_buffer_stack_max) yy_grow_stack(YY_CALLPM);
     }
     YY_CURRENT_BUFFER_LVALUE = b;
     if (b) yyin = b->yy_input_file;
 }
 
-void yypop_buffer_state(void) {
+void yypop_buffer_state(YY_DECLPM) {
     if (!yy_buffer_stack) return;
-    yy_delete_buffer(YY_CURRENT_BUFFER);
+    yy_delete_buffer(YY_CURRENT_BUFFER YY_CALLPM_C);
     YY_CURRENT_BUFFER_LVALUE = 0;
     if (yy_buffer_stack_top > 0) {
         --yy_buffer_stack_top;
@@ -122,23 +188,22 @@ void yypop_buffer_state(void) {
 
 /* ---- scan-from-memory entry points --------------------------------- */
 
-YY_BUFFER_STATE yy_scan_buffer(char *base, size_t size) {
-    /* User must guarantee two trailing NUL bytes. */
+YY_BUFFER_STATE yy_scan_buffer(char *base, size_t size YY_DECLPM_C) {
     if (size < 2 || base[size - 2] != 0 || base[size - 1] != 0) return 0;
     YY_BUFFER_STATE b = (YY_BUFFER_STATE)calloc(1, sizeof(*b));
     if (!b) return 0;
-    b->yy_buf            = base;
-    b->yy_buf_size       = size - 2;
-    b->yy_buf_end        = size - 2;
-    b->yy_buf_pos        = 0;
-    b->yy_at_bol         = 1;
-    b->yy_done           = 1;          /* nothing more to read */
+    b->yyb_data            = base;
+    b->yyb_size       = size - 2;
+    b->yyb_end        = size - 2;
+    b->yyb_pos        = 0;
+    b->yyb_at_bol         = 1;
+    b->yyb_done           = 1;
     b->yy_is_our_buffer  = 0;
-    yypush_buffer_state(b);
+    yypush_buffer_state(b YY_CALLPM_C);
     return b;
 }
 
-YY_BUFFER_STATE yy_scan_bytes(const char *bytes, int len) {
+YY_BUFFER_STATE yy_scan_bytes(const char *bytes, int len YY_DECLPM_C) {
     if (len < 0) len = 0;
     size_t n = (size_t)len;
     char *buf = (char*)malloc(n + 2);
@@ -148,69 +213,70 @@ YY_BUFFER_STATE yy_scan_bytes(const char *bytes, int len) {
     buf[n + 1] = 0;
     YY_BUFFER_STATE b = (YY_BUFFER_STATE)calloc(1, sizeof(*b));
     if (!b) { free(buf); return 0; }
-    b->yy_buf            = buf;
-    b->yy_buf_size       = n;
-    b->yy_buf_end        = n;
-    b->yy_buf_pos        = 0;
-    b->yy_at_bol         = 1;
-    b->yy_done           = 1;
+    b->yyb_data            = buf;
+    b->yyb_size       = n;
+    b->yyb_end        = n;
+    b->yyb_pos        = 0;
+    b->yyb_at_bol         = 1;
+    b->yyb_done           = 1;
     b->yy_is_our_buffer  = 1;
-    yypush_buffer_state(b);
+    yypush_buffer_state(b YY_CALLPM_C);
     return b;
 }
 
-YY_BUFFER_STATE yy_scan_string(const char *s) {
-    return yy_scan_bytes(s, s ? (int)strlen(s) : 0);
+YY_BUFFER_STATE yy_scan_string(const char *s YY_DECLPM_C) {
+    return yy_scan_bytes(s, s ? (int)strlen(s) : 0 YY_CALLPM_C);
 }
 
 /* ---- buffer-aware low-level helpers -------------------------------- */
 
 static void yy_buf_grow(YY_BUFFER_STATE b, size_t want) {
-    if (b->yy_buf_size >= want) return;
-    size_t s = b->yy_buf_size ? b->yy_buf_size : 4096;
+    if (b->yyb_size >= want) return;
+    size_t s = b->yyb_size ? b->yyb_size : 4096;
     while (s < want) s *= 2;
-    char *p = (char*)realloc(b->yy_buf, s + 2);
+    char *p = (char*)realloc(b->yyb_data, s + 2);
     if (!p) { fprintf(stderr, "lex: out of memory\n"); exit(2); }
-    b->yy_buf = p;
-    b->yy_buf_size = s;
-    b->yy_buf[b->yy_buf_end]     = 0;
-    b->yy_buf[b->yy_buf_end + 1] = 0;
+    b->yyb_data = p;
+    b->yyb_size = s;
+    b->yyb_data[b->yyb_end]     = 0;
+    b->yyb_data[b->yyb_end + 1] = 0;
 }
 
-static void yy_refill(void) {
+static void yy_refill(YY_DECLPM) {
     YY_BUFFER_STATE b = YY_CURRENT_BUFFER;
-    if (!b || b->yy_done || !b->yy_input_file) return;
-    yy_buf_grow(b, b->yy_buf_end + 4096);
-    size_t n = fread(b->yy_buf + b->yy_buf_end, 1,
-                     b->yy_buf_size - b->yy_buf_end, b->yy_input_file);
-    b->yy_buf_end += n;
-    if (n == 0) b->yy_done = 1;
-    b->yy_buf[b->yy_buf_end]     = 0;
-    b->yy_buf[b->yy_buf_end + 1] = 0;
+    if (!b || b->yyb_done || !b->yy_input_file) return;
+    yy_buf_grow(b, b->yyb_end + 4096);
+    size_t n = fread(b->yyb_data + b->yyb_end, 1,
+                     b->yyb_size - b->yyb_end, b->yy_input_file);
+    b->yyb_end += n;
+    if (n == 0) b->yyb_done = 1;
+    b->yyb_data[b->yyb_end]     = 0;
+    b->yyb_data[b->yyb_end + 1] = 0;
 }
 
-static void yy_slurp(void) {
+static void yy_slurp(YY_DECLPM) {
     YY_BUFFER_STATE b = YY_CURRENT_BUFFER;
     if (!b) return;
-    while (!b->yy_done) yy_refill();
+    while (!b->yyb_done) yy_refill(YY_CALLPM);
 }
 
-static void yy_init_default_buffer(void) {
-    yyensure_buffer_stack();
+static void yy_init_default_buffer(YY_DECLPM) {
+    yyensure_buffer_stack(YY_CALLPM);
     if (!YY_CURRENT_BUFFER) {
         if (!yyin) yyin = stdin;
-        YY_CURRENT_BUFFER_LVALUE = yy_create_buffer(yyin, YY_BUF_SIZE);
-        yy_slurp();
+        YY_CURRENT_BUFFER_LVALUE = yy_create_buffer(yyin, YY_BUF_SIZE YY_CALLPM_C);
+        yy_slurp(YY_CALLPM);
     }
+    yy_init_done = 1;
 }
 
-void yyrestart(FILE *new_input) {
-    yyensure_buffer_stack();
+void yyrestart(FILE *new_input YY_DECLPM_C) {
+    yyensure_buffer_stack(YY_CALLPM);
     if (!YY_CURRENT_BUFFER) {
-        YY_CURRENT_BUFFER_LVALUE = yy_create_buffer(new_input, YY_BUF_SIZE);
+        YY_CURRENT_BUFFER_LVALUE = yy_create_buffer(new_input, YY_BUF_SIZE YY_CALLPM_C);
     } else {
         YY_CURRENT_BUFFER->yy_input_file = new_input;
-        yy_flush_buffer(YY_CURRENT_BUFFER);
+        yy_flush_buffer(YY_CURRENT_BUFFER YY_CALLPM_C);
     }
     yyin = new_input;
     yy_text_active = 0;
@@ -218,18 +284,18 @@ void yyrestart(FILE *new_input) {
     yy_start = 0;
     yytext = 0;
     yyleng = 0;
-    yy_slurp();
+    yy_slurp(YY_CALLPM);
 }
 
 /* ---- yytext sealing ------------------------------------------------ */
 
-static void yy_text_seal(void) {
+static void yy_text_seal(YY_DECLPM) {
     if (yy_text_active && yytext) {
         yy_text_save = yytext[yyleng];
         yytext[yyleng] = 0;
     }
 }
-static void yy_text_unseal(void) {
+static void yy_text_unseal(YY_DECLPM) {
     if (yy_text_active && yytext) {
         yytext[yyleng] = yy_text_save;
         yy_text_active = 0;
@@ -238,54 +304,105 @@ static void yy_text_unseal(void) {
 
 /* ---- unput / input / yyless --------------------------------------- */
 
-static void yy_unput(int c) {
-    yy_text_unseal();
+static void yy_unput(int c YY_DECLPM_C) {
+    yy_text_unseal(YY_CALLPM);
     YY_BUFFER_STATE b = YY_CURRENT_BUFFER;
     if (!b) return;
-    if (b->yy_buf_pos == 0) {
-        yy_buf_grow(b, b->yy_buf_end + 1);
-        memmove(b->yy_buf + 1, b->yy_buf, b->yy_buf_end);
-        b->yy_buf_end += 1;
-        b->yy_buf_pos = 1;
+    if (b->yyb_pos == 0) {
+        yy_buf_grow(b, b->yyb_end + 1);
+        memmove(b->yyb_data + 1, b->yyb_data, b->yyb_end);
+        b->yyb_end += 1;
+        b->yyb_pos = 1;
     }
-    b->yy_buf[--b->yy_buf_pos] = (char)c;
-    b->yy_at_bol = (c == '\n') ? 1 : 0;
+    b->yyb_data[--b->yyb_pos] = (char)c;
+    b->yyb_at_bol = (c == '\n') ? 1 : 0;
 }
 
-static int yy_input(void) {
-    yy_text_unseal();
+static int yy_input(YY_DECLPM) {
+    yy_text_unseal(YY_CALLPM);
     YY_BUFFER_STATE b = YY_CURRENT_BUFFER;
     if (!b) return 0;
-    if (b->yy_buf_pos >= b->yy_buf_end) yy_refill();
-    if (b->yy_buf_pos >= b->yy_buf_end) return 0; /* EOF */
-    unsigned char c = (unsigned char)b->yy_buf[b->yy_buf_pos++];
+    if (b->yyb_pos >= b->yyb_end) yy_refill(YY_CALLPM);
+    if (b->yyb_pos >= b->yyb_end) return 0;
+    unsigned char c = (unsigned char)b->yyb_data[b->yyb_pos++];
     if (YY_TRACK_LINENO && c == '\n') yylineno++;
     return (int)c;
 }
 
-static void yy_do_yyless(int n) {
+static void yy_do_yyless(int n YY_DECLPM_C) {
     YY_BUFFER_STATE b = YY_CURRENT_BUFFER;
     yytext[yyleng] = yy_text_save;
-    b->yy_buf_pos -= (size_t)(yyleng - n);
+    b->yyb_pos -= (size_t)(yyleng - n);
     yyleng = n;
     yy_text_save = yytext[yyleng];
     yytext[yyleng] = 0;
-    b->yy_at_bol = (n > 0 && yytext[n - 1] == '\n');
+    b->yyb_at_bol = (n > 0 && yytext[n - 1] == '\n');
 }
 
 /* The codegen-emitted yylex body refers to these as bare names; expose
-   them as macros that route through YY_CURRENT_BUFFER. */
-#define yy_buf       (YY_CURRENT_BUFFER->yy_buf)
-#define yy_buf_size  (YY_CURRENT_BUFFER->yy_buf_size)
-#define yy_buf_pos   (YY_CURRENT_BUFFER->yy_buf_pos)
-#define yy_buf_end   (YY_CURRENT_BUFFER->yy_buf_end)
-#define yy_at_bol    (YY_CURRENT_BUFFER->yy_at_bol)
-#define yy_done      (YY_CURRENT_BUFFER->yy_done)
+   them as macros that route through YY_CURRENT_BUFFER's renamed fields. */
+#define yy_buf       (YY_CURRENT_BUFFER->yyb_data)
+#define yy_buf_size  (YY_CURRENT_BUFFER->yyb_size)
+#define yy_buf_pos   (YY_CURRENT_BUFFER->yyb_pos)
+#define yy_buf_end   (YY_CURRENT_BUFFER->yyb_end)
+#define yy_at_bol    (YY_CURRENT_BUFFER->yyb_at_bol)
+#define yy_done      (YY_CURRENT_BUFFER->yyb_done)
 
 #define BEGIN(s)        ((void)(yy_start = (s)))
 #define YY_START        (yy_start)
 #define ECHO            (void)fwrite(yytext, 1, (size_t)yyleng, yyout)
 #define yyterminate()   return 0
-#define unput(c)        yy_unput((int)(unsigned char)(c))
-#define input()         yy_input()
-#define yyless(n)       yy_do_yyless((int)(n))
+#define unput(c)        yy_unput((int)(unsigned char)(c) YY_CALLPM_C)
+#define input()         yy_input(YY_CALLPM)
+#define yyless(n)       yy_do_yyless((int)(n) YY_CALLPM_C)
+
+/* ---- reentrant init/destroy + accessors --------------------------- */
+#if YY_REENTRANT
+int yylex_init(yyscan_t *scanner) {
+    if (!scanner) return 1;
+    yyguts_t *g = (yyguts_t*)calloc(1, sizeof(yyguts_t));
+    if (!g) { *scanner = 0; return 1; }
+    /* yylineno_r left at 0 -- flex's reentrant convention. */
+    *scanner = g;
+    return 0;
+}
+
+int yylex_init_extra(void *user_extra, yyscan_t *scanner) {
+    int rc = yylex_init(scanner);
+    if (rc) return rc;
+    ((yyguts_t*)*scanner)->yyextra_r = user_extra;
+    return 0;
+}
+
+int yylex_destroy(yyscan_t scanner) {
+    if (!scanner) return 0;
+    yyguts_t *g = (yyguts_t*)scanner;
+    /* free all buffers on the stack */
+    while (g->yy_buffer_stack_r) {
+        YY_BUFFER_STATE b = g->yy_buffer_stack_r[g->yy_buffer_stack_top_r];
+        if (b) {
+            if (b->yy_is_our_buffer) free(b->yyb_data);
+            free(b);
+            g->yy_buffer_stack_r[g->yy_buffer_stack_top_r] = 0;
+        }
+        if (g->yy_buffer_stack_top_r == 0) break;
+        --g->yy_buffer_stack_top_r;
+    }
+    free(g->yy_buffer_stack_r);
+    free(g);
+    return 0;
+}
+
+char *yyget_text(yyscan_t s) { return ((yyguts_t*)s)->yytext_r; }
+int   yyget_leng(yyscan_t s) { return ((yyguts_t*)s)->yyleng_r; }
+int   yyget_lineno(yyscan_t s) { return ((yyguts_t*)s)->yylineno_r; }
+void  yyset_lineno(int v, yyscan_t s) { ((yyguts_t*)s)->yylineno_r = v; }
+FILE *yyget_in(yyscan_t s)  { return ((yyguts_t*)s)->yyin_r; }
+void  yyset_in(FILE *f, yyscan_t s) { ((yyguts_t*)s)->yyin_r = f; }
+FILE *yyget_out(yyscan_t s) { return ((yyguts_t*)s)->yyout_r; }
+void  yyset_out(FILE *f, yyscan_t s){ ((yyguts_t*)s)->yyout_r = f; }
+void *yyget_extra(yyscan_t s){ return ((yyguts_t*)s)->yyextra_r; }
+void  yyset_extra(void *v, yyscan_t s){ ((yyguts_t*)s)->yyextra_r = v; }
+int   yyget_debug(yyscan_t s){ (void)s; return 0; }
+void  yyset_debug(int v, yyscan_t s){ (void)v; (void)s; }
+#endif

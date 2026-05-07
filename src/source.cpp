@@ -229,9 +229,13 @@ struct Parser {
         else if (is_in(key, {"debug", "d"}))      out.options.debug = true;
         else if (key == "nodebug")                out.options.debug = false;
         else if (key == "prefix")                 out.options.prefix = val;
-        else if (is_in(key, {"reentrant", "c++", "lex-compat", "posix-compat",
-                             "header", "extra-type", "bison-bridge",
-                             "bison-locations", "array", "pointer"})) {
+        else if (key == "reentrant")              out.options.reentrant = true;
+        else if (key == "noreentrant")            out.options.reentrant = false;
+        else if (key == "bison-bridge")           out.options.bison_bridge = true;
+        else if (key == "bison-locations")        out.options.bison_locations = true;
+        else if (key == "extra-type")             out.options.extra_type = val;
+        else if (is_in(key, {"c++", "lex-compat", "posix-compat",
+                             "header", "array", "pointer"})) {
             diag.error(loc(), "unsupported %option: " + key);
         }
         else if (is_known_ignored_option(key)) {

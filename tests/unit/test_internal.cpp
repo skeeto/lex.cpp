@@ -47,10 +47,31 @@ void test_unsupported_option() {
     std::fprintf(stderr, "test_unsupported_option\n");
     lexcpp::Diagnostics d;
     auto r = lexcpp::parse_lex_file("<t>",
-        "%option reentrant\n%%\nfoo ECHO;\n%%\n", d);
+        "%option c++\n%%\nfoo ECHO;\n%%\n", d);
     CHECK(!d.ok());
     CHECK(d.error_count() >= 1);
     (void)r;
+}
+
+void test_reentrant_option() {
+    std::fprintf(stderr, "test_reentrant_option\n");
+    lexcpp::Diagnostics d;
+    auto r = lexcpp::parse_lex_file("<t>",
+        "%option reentrant noyywrap\n%%\nfoo ECHO;\n%%\n", d);
+    CHECK(r.has_value());
+    CHECK(d.ok());
+    CHECK(r->options.reentrant);
+}
+
+void test_bison_bridge_option() {
+    std::fprintf(stderr, "test_bison_bridge_option\n");
+    lexcpp::Diagnostics d;
+    auto r = lexcpp::parse_lex_file("<t>",
+        "%option reentrant bison-bridge bison-locations noyywrap\n"
+        "%%\nfoo ECHO;\n%%\n", d);
+    CHECK(r.has_value());
+    CHECK(r->options.bison_bridge);
+    CHECK(r->options.bison_locations);
 }
 
 void test_known_ignored() {
@@ -323,6 +344,8 @@ int main() {
     test_section3_only();
     test_pipe_action();
     test_start_cond_decl();
+    test_reentrant_option();
+    test_bison_bridge_option();
     test_diag_warn();
 
     std::fprintf(stderr, "\nUnit tests: %d passed, %d failed\n", g_pass, g_fail);

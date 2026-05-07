@@ -41,7 +41,11 @@ struct LexFile {
         bool case_insensitive = false;
         bool nodefault = false;
         bool debug = false;
+        bool reentrant = false;
+        bool bison_bridge = false;
+        bool bison_locations = false;
         std::string prefix = "yy";
+        std::string extra_type;        // user-supplied (default "void *")
     } options;
 };
 
