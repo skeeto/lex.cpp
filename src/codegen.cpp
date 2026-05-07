@@ -239,7 +239,7 @@ std::string yy_lex_body_reject(const LexFile& f, const NFA& nfa,
     std::ostringstream s;
     int nrules = static_cast<int>(rm.total_nfa_rules);
     if (nrules <= 0) nrules = 1;
-    s << yylex_signature(f) << " {\n";
+    s << "YY_DECL\n{\n";
     if (f.options.bison_bridge)
         s << "    YY_G->yylval_r = yylval_param;\n";
     if (f.options.bison_locations)
@@ -383,7 +383,7 @@ std::string yy_lex_body(const LexFile& f, const DFA& dfa, const NFA& nfa,
                         const RuleMap& rm, bool line_directives) {
     (void)dfa;
     std::ostringstream s;
-    s << yylex_signature(f) << " {\n";
+    s << "YY_DECL\n{\n";
     if (f.options.bison_bridge)
         s << "    YY_G->yylval_r = yylval_param;\n";
     if (f.options.bison_locations)
@@ -767,6 +767,15 @@ std::string emit_c(const CodegenInput& in) {
         out += "#define yylval ((YYSTYPE*)YY_G->yylval_r)\n";
     if (f.options.bison_locations)
         out += "#define yylloc ((YYLTYPE*)YY_G->yylloc_r)\n";
+
+    // YY_DECL: lets users override the yylex signature (commonly used
+    // by flex+bison setups that thread extra state through). The
+    // default below is what we'd emit otherwise; users `#define
+    // YY_DECL <their signature>` in %top { } or %{ ... %} before the
+    // generated runtime to override.
+    out += "#ifndef YY_DECL\n#define YY_DECL ";
+    out += yylex_signature(f);
+    out += "\n#endif\n\n";
 
     // yylex with action dispatch.
     if (f.options.uses_reject) {
