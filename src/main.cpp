@@ -49,6 +49,7 @@ struct Args {
     bool prefix_set = false;
     bool noline = false;
     std::string header_path;     // empty == no header file
+    lexcpp::CompressMode compress = lexcpp::CompressMode::Compress;
 };
 
 [[nodiscard]] bool starts_with(std::string_view s, std::string_view p) {
@@ -74,6 +75,14 @@ int parse_args(int argc, char** argv, Args& out, lexcpp::Diagnostics& diag) {
             out.nodefault = true;
         } else if (a == "-L" || a == "--noline") {
             out.noline = true;
+        } else if (a == "-f" || a == "--full") {
+            out.compress = lexcpp::CompressMode::Full;
+        } else if (a == "-Cf" || a == "--Cf") {
+            out.compress = lexcpp::CompressMode::Full;
+        } else if (a == "-Cfe" || a == "--Cfe") {
+            out.compress = lexcpp::CompressMode::FullEc;
+        } else if (a == "-Cem" || a == "--Cem" || a == "--compress") {
+            out.compress = lexcpp::CompressMode::Compress;
         } else if (starts_with(a, "--header-file=")) {
             out.header_path = std::string(a.substr(14));
         } else if (a == "--header-file") {
@@ -249,14 +258,16 @@ int main(int argc, char** argv) {
     }
     if (!diag.ok()) return 1;
 
-    // Build DFA. Equivalence classes enabled by default; -f / --full
-    // (added in Phase 13) will let the user request the dense form.
-    lexcpp::DFA dfa = lexcpp::build_dfa(nfa, /*use_eclasses=*/true);
+    // Build DFA according to the requested compression level.
+    bool use_ec   = args.compress != lexcpp::CompressMode::Full;
+    bool use_meta = args.compress == lexcpp::CompressMode::Compress;
+    lexcpp::DFA dfa = lexcpp::build_dfa(nfa, use_ec, use_meta);
 
     // Codegen.
     lexcpp::CodegenInput cg{&file, &nfa, &dfa};
     cg.output_path = args.to_stdout ? std::string("<stdout>") : args.output_path;
     cg.emit_line_directives = !args.noline;
+    cg.compress = args.compress;
     auto out = lexcpp::emit_c(cg);
 
     if (args.to_stdout) {

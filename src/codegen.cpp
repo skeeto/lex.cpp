@@ -249,7 +249,7 @@ std::string yy_lex_body_reject(const LexFile& f, const NFA& nfa,
     s << "    int yy_match_lens[" << nrules << "];\n";
     s << "    int yy_rule = -1;\n";
     s << "    size_t yy_len = 0;\n";
-    s << "    size_t yy_base = 0;\n";
+    s << "    size_t yy_mb = 0;\n";
     s << "    for (;;) {\n";
     s << "        yy_text_unseal(YY_CALLPM);\n";
     s << "        if (yy_buf_pos >= yy_buf_end) {\n";
@@ -266,8 +266,8 @@ std::string yy_lex_body_reject(const LexFile& f, const NFA& nfa,
     s << "            (void)yy_rule; return 0;\n";
     s << "        }\n";
     s << "        for (int r = 0; r < " << nrules << "; ++r) yy_match_lens[r] = -1;\n";
-    s << "        yy_base = yy_buf_pos;\n";
-    s << "        size_t yy_scan = yy_base;\n";
+    s << "        yy_mb = yy_buf_pos;\n";
+    s << "        size_t yy_scan = yy_mb;\n";
     s << "        int yy_state = yy_at_bol ? yy_cond_bol[yy_start] : yy_cond_normal[yy_start];\n";
     s << "        {\n";
     s << "            int yy_off = yy_accept_off[yy_state];\n";
@@ -279,7 +279,7 @@ std::string yy_lex_body_reject(const LexFile& f, const NFA& nfa,
     s << "        }\n";
     s << "        while (yy_scan < yy_buf_end) {\n";
     s << "            unsigned char yy_c = (unsigned char)yy_buf[yy_scan];\n";
-    s << "            int yy_next = yy_nxt[yy_state][yy_ec[yy_c]];\n";
+    s << "            int yy_next = YY_TRANSITION(yy_state, yy_c);\n";
     s << "            if (yy_next < 0) break;\n";
     s << "            yy_state = yy_next;\n";
     s << "            yy_scan++;\n";
@@ -287,7 +287,7 @@ std::string yy_lex_body_reject(const LexFile& f, const NFA& nfa,
     s << "            int yy_n   = yy_accept_off[yy_state + 1] - yy_off;\n";
     s << "            for (int i = 0; i < yy_n; ++i) {\n";
     s << "                int r = yy_accept_pool[yy_off + i];\n";
-    s << "                int cur = (int)(yy_scan - yy_base);\n";
+    s << "                int cur = (int)(yy_scan - yy_mb);\n";
     s << "                if (yy_match_lens[r] < cur) yy_match_lens[r] = cur;\n";
     s << "            }\n";
     s << "        }\n";
@@ -312,7 +312,7 @@ std::string yy_lex_body_reject(const LexFile& f, const NFA& nfa,
         s << "            continue;\n";
     }
     s << "        }\n";
-    s << "        yytext = yy_buf + yy_base;\n";
+    s << "        yytext = yy_buf + yy_mb;\n";
     s << "        {\n";
     s << "            int yy_trail = yy_rule_trail_len[yy_rule];\n";
     s << "            if (yy_trail > 0 && (size_t)yy_trail <= yy_len) yy_len -= (size_t)yy_trail;\n";
@@ -321,7 +321,7 @@ std::string yy_lex_body_reject(const LexFile& f, const NFA& nfa,
     s << "        yy_text_save = yytext[yy_len];\n";
     s << "        yytext[yy_len] = 0;\n";
     s << "        yy_text_active = 1;\n";
-    s << "        yy_buf_pos = yy_base + yy_len;\n";
+    s << "        yy_buf_pos = yy_mb + yy_len;\n";
     if (f.options.yylineno) {
         s << "        for (size_t yy_i = 0; yy_i < yy_len; ++yy_i)\n";
         s << "            if (yytext[yy_i] == '\\n') yylineno++;\n";
@@ -334,7 +334,7 @@ std::string yy_lex_body_reject(const LexFile& f, const NFA& nfa,
     s << "    yy_match_lens[yy_rule] = -1;                                       \\\n";
     s << "    yytext[yyleng] = yy_text_save;                                     \\\n";
     s << "    yy_text_active = 0;                                                \\\n";
-    s << "    yy_buf_pos = yy_base;                                              \\\n";
+    s << "    yy_buf_pos = yy_mb;                                              \\\n";
     s << "    goto yy_find_best;                                                 \\\n";
     s << "} while (0)\n";
     s << "        switch (yy_rule) {\n";
@@ -401,8 +401,8 @@ std::string yy_lex_body(const LexFile& f, const DFA& dfa, const NFA& nfa,
     s << "        int yy_state = yy_at_bol\n";
     s << "            ? yy_cond_bol[yy_start]\n";
     s << "            : yy_cond_normal[yy_start];\n";
-    s << "        size_t yy_base = yy_buf_pos;\n";
-    s << "        size_t yy_scan = yy_base;\n";
+    s << "        size_t yy_mb = yy_buf_pos;\n";
+    s << "        size_t yy_scan = yy_mb;\n";
     s << "        int    yy_acc_n = -1;\n";
     s << "        size_t yy_acc_n_len = 0;\n";
     s << "        int    yy_acc_e = -1;\n";
@@ -415,20 +415,20 @@ std::string yy_lex_body(const LexFile& f, const DFA& dfa, const NFA& nfa,
     s << "        }\n";
     s << "        while (yy_scan < yy_buf_end) {\n";
     s << "            unsigned char yy_c = (unsigned char)yy_buf[yy_scan];\n";
-    s << "            int yy_next = yy_nxt[yy_state][yy_ec[yy_c]];\n";
+    s << "            int yy_next = YY_TRANSITION(yy_state, yy_c);\n";
     s << "            if (yy_next < 0) break;\n";
     s << "            yy_state = yy_next;\n";
     s << "            yy_scan++;\n";
     s << "            int yy_an = yy_accept_normal[yy_state];\n";
     s << "            int yy_ae = yy_accept_eol[yy_state];\n";
-    s << "            if (yy_an >= 0) { yy_acc_n = yy_an; yy_acc_n_len = yy_scan - yy_base; }\n";
-    s << "            if (yy_ae >= 0) { yy_acc_e = yy_ae; yy_acc_e_len = yy_scan - yy_base; }\n";
+    s << "            if (yy_an >= 0) { yy_acc_n = yy_an; yy_acc_n_len = yy_scan - yy_mb; }\n";
+    s << "            if (yy_ae >= 0) { yy_acc_e = yy_ae; yy_acc_e_len = yy_scan - yy_mb; }\n";
     s << "        }\n";
 
     s << "        int    yy_rule = -1;\n";
     s << "        size_t yy_len = 0;\n";
     s << "        if (yy_acc_e >= 0 && yy_acc_e_len > 0) {\n";
-    s << "            size_t yy_after = yy_base + yy_acc_e_len;\n";
+    s << "            size_t yy_after = yy_mb + yy_acc_e_len;\n";
     s << "            int    yy_eol_ok = (yy_after >= yy_buf_end) ||\n";
     s << "                               (yy_buf[yy_after] == '\\n');\n";
     s << "            if (yy_eol_ok) {\n";
@@ -458,16 +458,16 @@ std::string yy_lex_body(const LexFile& f, const DFA& dfa, const NFA& nfa,
     }
     s << "        }\n";
 
-    s << "        yytext = yy_buf + yy_base;\n";
+    s << "        yytext = yy_buf + yy_mb;\n";
     s << "        {\n";
     s << "            int yy_trail = yy_rule_trail_len[yy_rule];\n";
     s << "            if (yy_trail > 0 && (size_t)yy_trail <= yy_len) {\n";
     s << "                yy_len -= (size_t)yy_trail;\n";
     s << "            }\n";
     s << "        }\n";
-    s << "        yy_buf_pos = yy_base + yy_len;\n";
+    s << "        yy_buf_pos = yy_mb + yy_len;\n";
     s << "        if (yy_more_offset > 0) {\n";
-    s << "            yytext = yy_buf + yy_base - (size_t)yy_more_offset;\n";
+    s << "            yytext = yy_buf + yy_mb - (size_t)yy_more_offset;\n";
     s << "            yy_len += (size_t)yy_more_offset;\n";
     s << "        }\n";
     s << "        yy_more_flag = 0;\n";
@@ -565,19 +565,54 @@ std::string emit_c(const CodegenInput& in) {
 
     // Tables.
     {
-        // Equivalence-class table: byte -> class id.
-        std::vector<long long> ec;
-        ec.reserve(256);
-        for (unsigned i = 0; i < 256; ++i) ec.push_back(d.eclasses.ec[i]);
-        append_int_array(out, "yy_ec", "unsigned char", ec);
+        bool emit_ec      = in.compress != CompressMode::Full;
+        bool emit_meta    = in.compress == CompressMode::Compress;
+        bool emit_compact = in.compress == CompressMode::Compress;
+
+        if (emit_ec) {
+            std::vector<long long> ec;
+            ec.reserve(256);
+            for (unsigned i = 0; i < 256; ++i) ec.push_back(d.eclasses.ec[i]);
+            append_int_array(out, "yy_ec", "unsigned char", ec);
+        } else {
+            // Identity table for the runtime macro that always reads it.
+            std::vector<long long> ec;
+            ec.reserve(256);
+            for (unsigned i = 0; i < 256; ++i) ec.push_back(i);
+            append_int_array(out, "yy_ec", "unsigned char", ec);
+        }
 
         std::size_t ncls = static_cast<std::size_t>(d.nclasses);
-        std::vector<long long> nxt;
-        nxt.reserve(d.states.size() * ncls);
-        for (const auto& st : d.states) {
-            for (std::size_t i = 0; i < ncls; ++i) nxt.push_back(st.next[i]);
+
+        if (emit_compact) {
+            CompressedDFA c = compress_dfa(d);
+            std::vector<long long> base, def, nxt, chk;
+            for (auto v : c.yy_base) base.push_back(v);
+            for (auto v : c.yy_def)  def.push_back(v);
+            for (auto v : c.yy_nxt)  nxt.push_back(v);
+            for (auto v : c.yy_chk)  chk.push_back(v);
+            append_int_array(out, "yy_base", "int", base);
+            append_int_array(out, "yy_def",  "int", def);
+            append_int_array(out, "yy_nxt",  "int", nxt);
+            append_int_array(out, "yy_chk",  "int", chk);
+        } else {
+            std::vector<long long> nxt;
+            nxt.reserve(d.states.size() * ncls);
+            for (const auto& st : d.states) {
+                for (std::size_t i = 0; i < ncls; ++i) nxt.push_back(st.next[i]);
+            }
+            append_2d_array(out, "yy_nxt", "int", d.states.size(), ncls, nxt);
         }
-        append_2d_array(out, "yy_nxt", "int", d.states.size(), ncls, nxt);
+
+        if (emit_meta) {
+            std::vector<long long> mv;
+            mv.reserve(d.meta.size());
+            for (auto v : d.meta) mv.push_back(v);
+            if (mv.empty()) {
+                for (std::size_t i = 0; i < ncls; ++i) mv.push_back(static_cast<long long>(i));
+            }
+            append_int_array(out, "yy_meta", "unsigned char", mv);
+        }
 
         std::vector<long long> an, ae;
         an.reserve(d.states.size());
@@ -627,6 +662,18 @@ std::string emit_c(const CodegenInput& in) {
     out += "/* runtime helpers (from runtime/runtime.c.in) */\n";
     out += std::string(kRuntimeTemplate);
     if (out.back() != '\n') out += "\n";
+    out += "\n";
+
+    // Inner-loop transition macro. Compressed mode goes through
+    // yy_base/yy_chk; dense modes index yy_nxt[s][ec] directly.
+    if (in.compress == CompressMode::Compress) {
+        out += "#define YY_TRANSITION(s, b) "
+               "(yy_chk[yy_base[(s)] + yy_ec[(unsigned char)(b)]] == (s) ? "
+               "yy_nxt[yy_base[(s)] + yy_ec[(unsigned char)(b)]] : -1)\n";
+    } else {
+        out += "#define YY_TRANSITION(s, b) "
+               "(yy_nxt[(s)][yy_ec[(unsigned char)(b)]])\n";
+    }
     out += "\n";
 
     // Bison-bridge: yylval is the *pointer* (matches flex). Users write

@@ -203,4 +203,90 @@ DFA build_dfa(const NFA& nfa, bool use_eclasses, bool compute_meta) {
     return dfa;
 }
 
+CompressedDFA compress_dfa(const DFA& dfa) {
+    CompressedDFA c;
+    int nstates  = static_cast<int>(dfa.states.size());
+    int nclasses = dfa.nclasses;
+
+    c.yy_base.assign(static_cast<std::size_t>(nstates), 0);
+    c.yy_def .assign(static_cast<std::size_t>(nstates), 0);
+
+    // Collect exceptions per state.
+    struct StateExc {
+        std::int32_t state_id;
+        std::vector<std::pair<std::int32_t, std::int32_t>> excs;  // (class, target)
+    };
+    std::vector<StateExc> exc(static_cast<std::size_t>(nstates));
+    for (int s = 0; s < nstates; ++s) {
+        exc[static_cast<std::size_t>(s)].state_id = s;
+        if (s == 0) continue;   // dead state has no transitions
+        const auto& st = dfa.states[static_cast<std::size_t>(s)];
+        for (int ec = 0; ec < nclasses; ++ec) {
+            std::int32_t t = st.next[static_cast<std::size_t>(ec)];
+            if (t > 0)        // skip both dead (-1) and dead state (0)
+                exc[static_cast<std::size_t>(s)].excs.push_back({ec, t});
+        }
+    }
+
+    // Pack largest exception lists first; fewer collisions overall.
+    std::vector<int> order;
+    order.reserve(static_cast<std::size_t>(nstates));
+    for (int s = 1; s < nstates; ++s) {
+        if (!exc[static_cast<std::size_t>(s)].excs.empty()) order.push_back(s);
+    }
+    std::sort(order.begin(), order.end(), [&](int a, int b) {
+        return exc[static_cast<std::size_t>(a)].excs.size()
+             > exc[static_cast<std::size_t>(b)].excs.size();
+    });
+
+    c.yy_chk.assign(static_cast<std::size_t>(nclasses), -1);
+    c.yy_nxt.assign(static_cast<std::size_t>(nclasses), 0);
+
+    auto fits_at = [&](std::int32_t base, const StateExc& se) -> bool {
+        for (const auto& [ec, _t] : se.excs) {
+            std::size_t i = static_cast<std::size_t>(base + ec);
+            if (i < c.yy_chk.size() && c.yy_chk[i] != -1) return false;
+        }
+        return true;
+    };
+
+    auto place_at = [&](std::int32_t base, const StateExc& se) {
+        std::int32_t hi = 0;
+        for (const auto& [ec, _t] : se.excs) hi = std::max(hi, base + ec + 1);
+        if (static_cast<std::size_t>(hi) > c.yy_chk.size()) {
+            c.yy_chk.resize(static_cast<std::size_t>(hi), -1);
+            c.yy_nxt.resize(static_cast<std::size_t>(hi), 0);
+        }
+        for (const auto& [ec, t] : se.excs) {
+            std::size_t i = static_cast<std::size_t>(base + ec);
+            c.yy_chk[i] = se.state_id;
+            c.yy_nxt[i] = t;
+        }
+    };
+
+    for (int s : order) {
+        const auto& se = exc[static_cast<std::size_t>(s)];
+        // Search lowest viable base. Allow negative base so position 0
+        // can be reached; bound by a margin to avoid overshooting.
+        std::int32_t best = 0;
+        for (std::int32_t base = 0;
+             base < static_cast<std::int32_t>(c.yy_chk.size()) + 1; ++base) {
+            if (fits_at(base, se)) { best = base; break; }
+        }
+        c.yy_base[static_cast<std::size_t>(s)] = best;
+        place_at(best, se);
+    }
+
+    // Pad pool so that any state-class lookup is in-bounds (guards the
+    // runtime against reading off the end when a state with empty
+    // exception list reuses base 0 against a high class id).
+    std::size_t needed = c.yy_chk.size();
+    if (needed < static_cast<std::size_t>(nclasses))
+        needed = static_cast<std::size_t>(nclasses);
+    c.yy_chk.resize(needed, -1);
+    c.yy_nxt.resize(needed, 0);
+    c.pool_size = static_cast<std::int32_t>(needed);
+    return c;
+}
+
 } // namespace lexcpp

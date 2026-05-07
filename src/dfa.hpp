@@ -44,4 +44,19 @@ struct DFA {
 DFA build_dfa(const NFA& nfa, bool use_eclasses = false,
               bool compute_meta = false);
 
+// Comb / row-displacement compression. Each state's transitions are
+// packed sparsely into a shared pool. yy_base[s] is the offset; for a
+// class c, the transition is yy_nxt[yy_base[s] + c] iff
+// yy_chk[yy_base[s] + c] == s. If yy_chk does not match, the state has
+// no transition for this class (treat as dead).
+struct CompressedDFA {
+    std::vector<std::int32_t> yy_base;       // [nstates]
+    std::vector<std::int32_t> yy_def;        // [nstates]; default state, currently always 0 (dead)
+    std::vector<std::int32_t> yy_nxt;        // [pool_size]
+    std::vector<std::int32_t> yy_chk;        // [pool_size]; -1 means unallocated
+    std::int32_t pool_size = 0;
+};
+
+[[nodiscard]] CompressedDFA compress_dfa(const DFA& dfa);
+
 } // namespace lexcpp
