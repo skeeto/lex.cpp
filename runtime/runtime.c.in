@@ -122,13 +122,23 @@ FILE *yyout    = 0;
 extern int yywrap(void);
 #endif
 
+/* GCC's own bootstrap poisons calloc/strdup/strndup via
+ *   #pragma GCC poison calloc strdup strndup
+ * in gcc/system.h. We avoid calloc entirely; users embedding the
+ * generated scanner in environments with similar bans see no calls. */
+static void *yy_zalloc(size_t n) {
+    void *p = malloc(n);
+    if (p) memset(p, 0, n);
+    return p;
+}
+
 /* ---- buffer-stack management --------------------------------------- */
 
 static void yyensure_buffer_stack(YY_DECLPM) {
     if (!yy_buffer_stack) {
         yy_buffer_stack_max = 1;
         yy_buffer_stack = (YY_BUFFER_STATE*)
-            calloc(yy_buffer_stack_max, sizeof(YY_BUFFER_STATE));
+            yy_zalloc(yy_buffer_stack_max * sizeof(YY_BUFFER_STATE));
         if (!yy_buffer_stack) {
             fprintf(stderr, "lex: out of memory\n"); exit(2);
         }
@@ -147,7 +157,7 @@ static void yy_grow_stack(YY_DECLPM) {
 }
 
 YY_BUFFER_STATE yy_create_buffer(FILE *file, int size YY_DECLPM_C) {
-    YY_BUFFER_STATE b = (YY_BUFFER_STATE)calloc(1, sizeof(*b));
+    YY_BUFFER_STATE b = (YY_BUFFER_STATE)yy_zalloc(sizeof(*b));
     if (!b) return 0;
     b->yyb_size = (size > 0) ? (size_t)size : YY_BUF_SIZE;
     b->yyb_data = (char*)malloc(b->yyb_size + 2);
@@ -212,7 +222,7 @@ void yypop_buffer_state(YY_DECLPM) {
 
 YY_BUFFER_STATE yy_scan_buffer(char *base, size_t size YY_DECLPM_C) {
     if (size < 2 || base[size - 2] != 0 || base[size - 1] != 0) return 0;
-    YY_BUFFER_STATE b = (YY_BUFFER_STATE)calloc(1, sizeof(*b));
+    YY_BUFFER_STATE b = (YY_BUFFER_STATE)yy_zalloc(sizeof(*b));
     if (!b) return 0;
     b->yyb_data            = base;
     b->yyb_size       = size - 2;
@@ -233,7 +243,7 @@ YY_BUFFER_STATE yy_scan_bytes(const char *bytes, int len YY_DECLPM_C) {
     if (n) memcpy(buf, bytes, n);
     buf[n] = 0;
     buf[n + 1] = 0;
-    YY_BUFFER_STATE b = (YY_BUFFER_STATE)calloc(1, sizeof(*b));
+    YY_BUFFER_STATE b = (YY_BUFFER_STATE)yy_zalloc(sizeof(*b));
     if (!b) { free(buf); return 0; }
     b->yyb_data            = buf;
     b->yyb_size       = n;
@@ -422,8 +432,11 @@ int yy_top_state(YY_DECLPM) {
 #define ECHO            (void)fwrite(yytext, 1, (size_t)yyleng, yyout)
 /* yyterminate() returns 0; yyterminate(VAL) returns VAL.
  * Uses __VA_OPT__ -- standard in C2x, accepted by gcc/clang as a
- * C99/C11 extension, and by MSVC with /Zc:preprocessor. */
+ * C99/C11 extension, and by MSVC with /Zc:preprocessor.
+ * User .l files are free to define their own yyterminate first. */
+#ifndef yyterminate
 #define yyterminate(...) return (0 __VA_OPT__(,) __VA_ARGS__)
+#endif
 #define unput(c)        yy_unput((int)(unsigned char)(c) YY_CALLPM_C)
 #define input()         yy_input(YY_CALLPM)
 #define yyless(n)       yy_do_yyless((int)(n) YY_CALLPM_C)
@@ -432,7 +445,7 @@ int yy_top_state(YY_DECLPM) {
 #if YY_REENTRANT
 int yylex_init(yyscan_t *scanner) {
     if (!scanner) return 1;
-    yyguts_t *g = (yyguts_t*)calloc(1, sizeof(yyguts_t));
+    yyguts_t *g = (yyguts_t*)yy_zalloc(sizeof(yyguts_t));
     if (!g) { *scanner = 0; return 1; }
     /* yylineno_r left at 0 -- flex's reentrant convention. */
     *scanner = g;
