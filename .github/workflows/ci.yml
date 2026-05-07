@@ -157,7 +157,7 @@ jobs:
         run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DLEXCPP_BUILD_TESTS=OFF
           cmake --build build -j
-      - name: Smoke (wine vs native must match byte-for-byte)
+      - name: Smoke 1 (codegen parity: wine output == native output)
         run: |
           fail=0
           for d in tests/cases/*/; do
@@ -170,7 +170,32 @@ jobs:
               echo "DIFFER: $case"
             fi
           done
-          echo "Failures: $fail"
+          echo "Codegen-parity failures: $fail"
+          test $fail -eq 0
+      - name: Smoke 2 (full mingw+wine: compile generated .c with mingw,
+          run under wine, compare against flex on representative cases)
+        run: |
+          fail=0
+          for case in 010_minimal 080_longest 100_echo 160_reentrant_basic \
+                      230_reject_simple 240_yymore_basic 290_trail_var; do
+              d=tests/cases/$case
+              [ -f $d/scanner.l ] || continue
+              WINEDEBUG=-all wine build-mingw/bin/lex.exe -o /tmp/w.c $d/scanner.l
+              x86_64-w64-mingw32-gcc -w -O0 /tmp/w.c -o /tmp/w.exe \
+                  -static -static-libgcc -static-libstdc++
+              flex -o /tmp/f.c $d/scanner.l
+              cc -w -Wno-error=implicit-function-declaration /tmp/f.c -o /tmp/f
+              input=/dev/null
+              [ -f $d/input.txt ] && input=$d/input.txt
+              WINEDEBUG=-all wine /tmp/w.exe < $input > /tmp/wout 2>/dev/null
+              /tmp/f < $input > /tmp/fout
+              if ! cmp -s /tmp/wout /tmp/fout; then
+                  echo "DIFFER (runtime): $case"
+                  diff <(od -c /tmp/wout | head -5) <(od -c /tmp/fout | head -5)
+                  fail=$((fail+1))
+              fi
+          done
+          echo "Runtime-parity failures: $fail"
           test $fail -eq 0
 
   windows:
