@@ -250,6 +250,10 @@ private:
         bool first = true;
         while (!at_end() && (first || peek() != ']')) {
             first = false;
+            // POSIX character class: [:NAME:] only valid inside [].
+            if (peek() == '[' && peek(1) == ':') {
+                if (try_posix_class(n->cls)) continue;
+            }
             unsigned a = read_class_byte();
             if (peek() == '-' && peek(1) != ']' && peek(1) != '\0') {
                 advance();
@@ -270,6 +274,48 @@ private:
             n->cls = inv;
         }
         return n;
+    }
+
+    // POSIX [:NAME:] support. Returns true if a class was recognised
+    // and consumed (bits OR'd into `out`); false if the input doesn't
+    // look like one (caller falls back to literal handling).
+    bool try_posix_class(ByteSet& out) {
+        std::size_t save = pos_;
+        advance(); advance(); // '[' ':'
+        std::string name;
+        while (!at_end() && peek() != ':' && peek() != ']' &&
+               name.size() < 16) {
+            char c = peek();
+            if (!std::isalpha(static_cast<unsigned char>(c))) break;
+            name.push_back(advance());
+        }
+        if (peek() != ':' || peek(1) != ']') { pos_ = save; return false; }
+        advance(); advance(); // ':' ']'
+
+        auto add = [&](unsigned lo, unsigned hi) {
+            for (unsigned b = lo; b <= hi; ++b) out.add(b);
+        };
+        if      (name == "alpha")  { add('A','Z'); add('a','z'); }
+        else if (name == "upper")  { add('A','Z'); if (ci_) add('a','z'); }
+        else if (name == "lower")  { add('a','z'); if (ci_) add('A','Z'); }
+        else if (name == "digit")  { add('0','9'); }
+        else if (name == "xdigit") { add('0','9'); add('A','F'); add('a','f'); }
+        else if (name == "alnum")  { add('A','Z'); add('a','z'); add('0','9'); }
+        else if (name == "space")  {
+            for (unsigned b : {' ', '\t', '\n', '\v', '\f', '\r'}) out.add(b);
+        }
+        else if (name == "blank")  { out.add(' '); out.add('\t'); }
+        else if (name == "cntrl")  { add(0x00, 0x1f); out.add(0x7f); }
+        else if (name == "print")  { add(0x20, 0x7e); }
+        else if (name == "graph")  { add(0x21, 0x7e); }
+        else if (name == "punct")  {
+            for (unsigned b = 0x21; b <= 0x7e; ++b)
+                if (!std::isalnum(static_cast<unsigned char>(b))) out.add(b);
+        }
+        else {
+            diag_.error(loc_, "unknown POSIX character class: [:" + name + ":]");
+        }
+        return true;
     }
 
     unsigned read_class_byte() {
