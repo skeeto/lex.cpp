@@ -92,6 +92,8 @@ int parse_args(int argc, const std::string_view* argv, Args& out,
         } else if (a == "-S" || a == "--skeleton") {
             if (++i >= argc) { diag.error({}, "-S requires an argument"); return 2; }
             out.skeleton_path = std::string(argv[i]);
+        } else if (starts_with(a, "-S")) {
+            out.skeleton_path = std::string(a.substr(2));
         } else if (starts_with(a, "--skeleton=")) {
             out.skeleton_path = std::string(a.substr(11));
         } else if (starts_with(a, "--header-file=")) {
@@ -106,11 +108,16 @@ int parse_args(int argc, const std::string_view* argv, Args& out,
         } else if (a == "-o") {
             if (++i >= argc) { diag.error({}, "-o requires an argument"); return 2; }
             out.output_path = std::string(argv[i]);
+        } else if (starts_with(a, "-o")) {
+            out.output_path = std::string(a.substr(2));
         } else if (starts_with(a, "--outfile=")) {
             out.output_path = std::string(a.substr(10));
         } else if (a == "-P") {
             if (++i >= argc) { diag.error({}, "-P requires an argument"); return 2; }
             out.prefix = std::string(argv[i]);
+            out.prefix_set = true;
+        } else if (starts_with(a, "-P")) {
+            out.prefix = std::string(a.substr(2));
             out.prefix_set = true;
         } else if (starts_with(a, "--prefix=")) {
             out.prefix = std::string(a.substr(9));
