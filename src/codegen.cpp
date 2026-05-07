@@ -206,7 +206,7 @@ void emit_eof_dispatch(std::string& out, const LexFile& f, const NFA& nfa) {
         out += std::to_string(c);
         out += ":";
         if (per_cond[c] < 0) {
-            out += " return 0;\n";
+            out += " yyterminate();\n";
         } else {
             const auto& r = f.rules[static_cast<std::size_t>(per_cond[c])];
             out += " {\n";
@@ -214,7 +214,7 @@ void emit_eof_dispatch(std::string& out, const LexFile& f, const NFA& nfa) {
             out += "\n    } break;\n";
         }
     }
-    out += "    default: return 0;\n";
+    out += "    default: yyterminate();\n";
     out += "}\n";
 }
 
@@ -272,7 +272,7 @@ std::string yy_lex_body_reject(const LexFile& f, const NFA& nfa,
         emit_eof_dispatch(eof, f, nfa);
         s << eof;
     }
-    s << "            (void)yy_rule; return 0;\n";
+    s << "            (void)yy_rule; yyterminate();\n";
     s << "        }\n";
     s << "        for (int r = 0; r < " << nrules << "; ++r) yy_match_lens[r] = -1;\n";
     s << "        yy_mb = yy_buf_pos;\n";
@@ -310,7 +310,7 @@ std::string yy_lex_body_reject(const LexFile& f, const NFA& nfa,
     s << "        }\n";
     s << "        if (yy_rule < 0 || yy_len == 0) {\n";
     if (f.options.nodefault) {
-        s << "            fprintf(stderr, \"scanner jammed\\n\"); exit(2);\n";
+        s << "            yy_jam_report(YY_CALLPM); exit(2);\n";
     } else {
         s << "            if (yy_buf_pos < yy_buf_end) {\n";
         s << "                unsigned char yy_d = (unsigned char)yy_buf[yy_buf_pos++];\n";
@@ -427,7 +427,7 @@ std::string yy_lex_body(const LexFile& f, const DFA& dfa, const NFA& nfa,
         s << eof;
     }
     s << "            (void)yy_rule;\n";
-    s << "            return 0;\n";
+    s << "            yyterminate();\n";
     s << "        }\n";
 
     bool any_var_trail = false;
@@ -500,7 +500,7 @@ std::string yy_lex_body(const LexFile& f, const DFA& dfa, const NFA& nfa,
     s << "        }\n";
     s << "        if (yy_rule < 0) {\n";
     if (f.options.nodefault) {
-        s << "            fprintf(stderr, \"scanner jammed\\n\"); exit(2);\n";
+        s << "            yy_jam_report(YY_CALLPM); exit(2);\n";
     } else {
         s << "            unsigned char yy_d = (unsigned char)yy_buf[yy_buf_pos++];\n";
         s << "            (void)fputc((int)yy_d, yyout);\n";

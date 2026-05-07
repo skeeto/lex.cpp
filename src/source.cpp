@@ -23,6 +23,15 @@ struct Parser {
     Diagnostics& diag;
     LexFile out{};
 
+    // Stack of `<sc1,sc2,...>{ ... }` block contexts in section 2.
+    // When non-empty, a rule with no <SC> prefix inherits the top
+    // entry's start conditions. The bool indicates `<*>{ ... }`.
+    struct ScBlock {
+        std::vector<std::string> conds;
+        bool any_state = false;
+    };
+    std::vector<ScBlock> sc_blocks;
+
     Parser(std::string_view s, std::string f, Diagnostics& d)
         : src(s), file(std::move(f)), diag(d) {
         out.origin = {file, 1, 1};
@@ -283,7 +292,8 @@ struct Parser {
             "8bit", "no8bit", "interactive", "nointeractive",
             "batch", "nobatch", "warn", "nowarn", "ecs", "noecs",
             "meta-ecs", "nometa-ecs", "stack", "nostack",
-            "always-interactive", "fast", "full", "main", "nomain",
+            "always-interactive", "never-interactive",
+            "fast", "full", "main", "nomain",
             "yymore", "noyymore", "input", "noinput", "unput", "nounput",
             "yyalloc", "noyyalloc", "yyfree", "noyyfree",
             "yyrealloc", "noyyrealloc", "yy_scan_buffer", "yy_scan_bytes",
@@ -369,6 +379,63 @@ struct Parser {
                 // ignore
                 continue;
             }
+            // `}` (optionally followed by whitespace + newline) closes
+            // an `<sc>{` block.
+            if (c == '}' && !sc_blocks.empty()) {
+                std::size_t save = pos;
+                get();
+                while (!at_end() && (peek() == ' ' || peek() == '\t')) get();
+                if (at_end() || peek() == '\n') {
+                    if (peek() == '\n') get();
+                    sc_blocks.pop_back();
+                    continue;
+                }
+                pos = save;
+            }
+            // Detect `<sc1,sc2,...>{` block opener: a `<...>` prefix
+            // immediately followed by `{` and end-of-line. If `{` is
+            // followed by something else, fall through to parse_rule
+            // (it's a normal rule whose pattern starts with `{`).
+            if (c == '<' && peek(1) != '<') {
+                std::size_t save = pos;
+                std::uint32_t save_line = line, save_col = col;
+                ScBlock blk;
+                get(); // '<'
+                if (peek() == '*' && peek(1) == '>') {
+                    blk.any_state = true;
+                    get(); get();
+                } else {
+                    std::string cur;
+                    while (!at_end() && peek() != '>' && peek() != '\n') {
+                        char ch = get();
+                        if (ch == ',') {
+                            if (!cur.empty()) blk.conds.push_back(std::move(cur));
+                            cur.clear();
+                        } else if (!std::isspace(static_cast<unsigned char>(ch))) {
+                            cur.push_back(ch);
+                        }
+                    }
+                    if (peek() == '>') get();
+                    if (!cur.empty()) blk.conds.push_back(std::move(cur));
+                }
+                // After the `>`, look for `{` then optional whitespace + newline.
+                std::size_t after_gt = pos;
+                while (!at_end() && (peek() == ' ' || peek() == '\t')) get();
+                if (peek() == '{') {
+                    std::size_t save_brace = pos;
+                    get();
+                    while (!at_end() && (peek() == ' ' || peek() == '\t')) get();
+                    if (at_end() || peek() == '\n') {
+                        if (peek() == '\n') get();
+                        sc_blocks.push_back(std::move(blk));
+                        continue;
+                    }
+                    pos = save_brace;
+                }
+                // Not a block — rewind and let parse_rule handle it.
+                pos = save; line = save_line; col = save_col;
+                (void)after_gt;
+            }
             parse_rule();
         }
     }
@@ -378,7 +445,9 @@ struct Parser {
         r.loc = loc();
 
         // Optional <SC,SC,...> prefix or <*>.
+        bool had_sc_prefix = false;
         if (peek() == '<' && peek(1) != '<') {
+            had_sc_prefix = true;
             get(); // '<'
             if (peek() == '*' && peek(1) == '>') {
                 r.any_state = true;
@@ -397,6 +466,13 @@ struct Parser {
                 if (peek() == '>') get();
                 if (!cur.empty()) r.conds.push_back(std::move(cur));
             }
+        }
+        // Inherit start conditions from the surrounding `<sc>{ ... }`
+        // block if the rule didn't carry its own prefix.
+        if (!had_sc_prefix && !sc_blocks.empty()) {
+            const auto& blk = sc_blocks.back();
+            if (blk.any_state) r.any_state = true;
+            else r.conds = blk.conds;
         }
 
         // <<EOF>> after the optional SC prefix is a special pattern.

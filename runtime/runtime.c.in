@@ -415,6 +415,26 @@ int yy_top_state(YY_DECLPM) {
     return yy_state_stack[yy_state_stack_top - 1];
 }
 
+/* Diagnostic emitted on jam (no rule matched, %option nodefault).
+   Reports the offending byte (printable form when possible), buffer
+   offset, current start condition, and the line number when
+   yylineno tracking is enabled. */
+static void yy_jam_report(YY_DECLPM) {
+    YY_BUFFER_STATE b = YY_CURRENT_BUFFER;
+    unsigned char ch = (b && b->yyb_pos < b->yyb_end)
+        ? (unsigned char)b->yyb_data[b->yyb_pos] : 0;
+    size_t off = b ? b->yyb_pos : 0;
+    if (ch >= 0x20 && ch < 0x7f && ch != '\\' && ch != '\'') {
+        fprintf(stderr, "scanner jammed at byte 0x%02x ('%c'), "
+                        "offset %zu, line %d, start-condition %d\n",
+                ch, ch, off, yylineno, yy_start);
+    } else {
+        fprintf(stderr, "scanner jammed at byte 0x%02x, "
+                        "offset %zu, line %d, start-condition %d\n",
+                ch, off, yylineno, yy_start);
+    }
+}
+
 /* The codegen-emitted yylex body refers to these as bare names; expose
    them as macros that route through YY_CURRENT_BUFFER's renamed fields. */
 #define yy_buf       (YY_CURRENT_BUFFER->yyb_data)
