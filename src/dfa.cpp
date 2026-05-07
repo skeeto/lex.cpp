@@ -84,16 +84,30 @@ struct SetHash {
     }
 };
 
+// For each class id, return a representative byte (the first byte that
+// maps to that class).
+std::vector<unsigned> class_reps(const Eclasses& ec) {
+    std::vector<unsigned> r(static_cast<std::size_t>(ec.nclasses), 256u);
+    for (unsigned b = 0; b < 256; ++b) {
+        unsigned c = ec.ec[b];
+        if (r[c] == 256u) r[c] = b;
+    }
+    return r;
+}
+
 } // namespace
 
-DFA build_dfa(const NFA& nfa) {
+DFA build_dfa(const NFA& nfa, bool use_eclasses) {
     DFA dfa;
+    dfa.eclasses = use_eclasses ? compute_eclasses(nfa) : identity_eclasses();
+    dfa.nclasses = dfa.eclasses.nclasses;
+    auto reps = class_reps(dfa.eclasses);
+
     dfa.cond_starts.resize(nfa.cond_starts.size());
 
-    // Add the dead state (index 0) so transitions can target -1; use
-    // -1 only as a sentinel and never as a valid index.
+    // Add the dead state (index 0).
     DFAState dead{};
-    dead.next.fill(-1);
+    dead.next.assign(static_cast<std::size_t>(dfa.nclasses), -1);
     dfa.states.push_back(dead);
 
     std::unordered_map<SetKey, std::int32_t, SetHash> index;
@@ -105,12 +119,12 @@ DFA build_dfa(const NFA& nfa) {
         if (it != index.end()) return it->second;
         std::int32_t id = static_cast<std::int32_t>(dfa.states.size());
         DFAState s;
-        s.next.fill(-1);
+        s.next.assign(static_cast<std::size_t>(dfa.nclasses), -1);
         auto ap = accept_for(nfa, k.v);
         s.accept_normal = ap.normal;
         s.accept_eol    = ap.eol;
         s.accept_list   = std::move(ap.list);
-        dfa.states.push_back(s);
+        dfa.states.push_back(std::move(s));
         id_to_set.push_back(k.v);
         index.emplace(std::move(k), id);
         return id;
@@ -132,12 +146,13 @@ DFA build_dfa(const NFA& nfa) {
 
     while (!work.empty()) {
         auto id = work.front(); work.pop();
-        // Note: id_to_set is keyed off non-dead states (id - 1).
         auto idx = static_cast<std::size_t>(id - 1);
         if (idx >= id_to_set.size()) continue;
         StateSet cur = id_to_set[idx];
-        for (unsigned b = 0; b < 256; ++b) {
-            StateSet n = step(nfa, cur, b);
+        for (int cl = 0; cl < dfa.nclasses; ++cl) {
+            unsigned rep = reps[static_cast<std::size_t>(cl)];
+            if (rep >= 256) continue;       // unused class
+            StateSet n = step(nfa, cur, rep);
             if (n.empty()) continue;
             auto exists = index.find(SetKey{n});
             std::int32_t target;
@@ -147,7 +162,7 @@ DFA build_dfa(const NFA& nfa) {
                 target = get_state(std::move(n));
                 work.push(target);
             }
-            dfa.states[static_cast<std::size_t>(id)].next[b] = target;
+            dfa.states[static_cast<std::size_t>(id)].next[static_cast<std::size_t>(cl)] = target;
         }
     }
 

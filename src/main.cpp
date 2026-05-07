@@ -249,8 +249,9 @@ int main(int argc, char** argv) {
     }
     if (!diag.ok()) return 1;
 
-    // Build DFA.
-    lexcpp::DFA dfa = lexcpp::build_dfa(nfa);
+    // Build DFA. Equivalence classes enabled by default; -f / --full
+    // (added in Phase 13) will let the user request the dense form.
+    lexcpp::DFA dfa = lexcpp::build_dfa(nfa, /*use_eclasses=*/true);
 
     // Codegen.
     lexcpp::CodegenInput cg{&file, &nfa, &dfa};

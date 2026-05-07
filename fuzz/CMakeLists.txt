@@ -18,6 +18,7 @@ add_executable(fuzz_regex
     ${CMAKE_SOURCE_DIR}/src/diag.cpp
     ${CMAKE_SOURCE_DIR}/src/regex.cpp
     ${CMAKE_SOURCE_DIR}/src/nfa.cpp
+    ${CMAKE_SOURCE_DIR}/src/eclass.cpp
     ${CMAKE_SOURCE_DIR}/src/dfa.cpp)
 target_include_directories(fuzz_regex PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(fuzz_regex PRIVATE lexcpp_fuzz_iface lexcpp_warnings)
@@ -29,6 +30,7 @@ add_executable(fuzz_lfile
     ${CMAKE_SOURCE_DIR}/src/source.cpp
     ${CMAKE_SOURCE_DIR}/src/regex.cpp
     ${CMAKE_SOURCE_DIR}/src/nfa.cpp
+    ${CMAKE_SOURCE_DIR}/src/eclass.cpp
     ${CMAKE_SOURCE_DIR}/src/dfa.cpp
     ${CMAKE_SOURCE_DIR}/src/codegen.cpp)
 target_include_directories(fuzz_lfile PRIVATE

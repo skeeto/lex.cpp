@@ -5,6 +5,7 @@ add_executable(lexcpp_unit
     ${CMAKE_SOURCE_DIR}/src/source.cpp
     ${CMAKE_SOURCE_DIR}/src/regex.cpp
     ${CMAKE_SOURCE_DIR}/src/nfa.cpp
+    ${CMAKE_SOURCE_DIR}/src/eclass.cpp
     ${CMAKE_SOURCE_DIR}/src/dfa.cpp
     ${CMAKE_SOURCE_DIR}/src/codegen.cpp)
 

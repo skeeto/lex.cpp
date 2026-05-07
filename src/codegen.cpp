@@ -279,7 +279,7 @@ std::string yy_lex_body_reject(const LexFile& f, const NFA& nfa,
     s << "        }\n";
     s << "        while (yy_scan < yy_buf_end) {\n";
     s << "            unsigned char yy_c = (unsigned char)yy_buf[yy_scan];\n";
-    s << "            int yy_next = yy_nxt[yy_state][yy_c];\n";
+    s << "            int yy_next = yy_nxt[yy_state][yy_ec[yy_c]];\n";
     s << "            if (yy_next < 0) break;\n";
     s << "            yy_state = yy_next;\n";
     s << "            yy_scan++;\n";
@@ -415,7 +415,7 @@ std::string yy_lex_body(const LexFile& f, const DFA& dfa, const NFA& nfa,
     s << "        }\n";
     s << "        while (yy_scan < yy_buf_end) {\n";
     s << "            unsigned char yy_c = (unsigned char)yy_buf[yy_scan];\n";
-    s << "            int yy_next = yy_nxt[yy_state][yy_c];\n";
+    s << "            int yy_next = yy_nxt[yy_state][yy_ec[yy_c]];\n";
     s << "            if (yy_next < 0) break;\n";
     s << "            yy_state = yy_next;\n";
     s << "            yy_scan++;\n";
@@ -565,12 +565,19 @@ std::string emit_c(const CodegenInput& in) {
 
     // Tables.
     {
+        // Equivalence-class table: byte -> class id.
+        std::vector<long long> ec;
+        ec.reserve(256);
+        for (unsigned i = 0; i < 256; ++i) ec.push_back(d.eclasses.ec[i]);
+        append_int_array(out, "yy_ec", "unsigned char", ec);
+
+        std::size_t ncls = static_cast<std::size_t>(d.nclasses);
         std::vector<long long> nxt;
-        nxt.reserve(d.states.size() * 256);
+        nxt.reserve(d.states.size() * ncls);
         for (const auto& st : d.states) {
-            for (unsigned i = 0; i < 256; ++i) nxt.push_back(st.next[i]);
+            for (std::size_t i = 0; i < ncls; ++i) nxt.push_back(st.next[i]);
         }
-        append_2d_array(out, "yy_nxt", "int", d.states.size(), 256, nxt);
+        append_2d_array(out, "yy_nxt", "int", d.states.size(), ncls, nxt);
 
         std::vector<long long> an, ae;
         an.reserve(d.states.size());
@@ -605,10 +612,10 @@ std::string emit_c(const CodegenInput& in) {
             std::vector<long long> pool;
             off.reserve(d.states.size() + 1);
             for (const auto& st : d.states) {
-                off.push_back((long long)pool.size());
+                off.push_back(static_cast<long long>(pool.size()));
                 for (auto r : st.accept_list) pool.push_back(r);
             }
-            off.push_back((long long)pool.size());
+            off.push_back(static_cast<long long>(pool.size()));
             if (pool.empty()) pool.push_back(0);
             append_int_array(out, "yy_accept_off",  "int", off);
             append_int_array(out, "yy_accept_pool", "int", pool);

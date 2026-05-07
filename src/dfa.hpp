@@ -1,5 +1,6 @@
 #pragma once
 
+#include "eclass.hpp"
 #include "nfa.hpp"
 
 #include <array>
@@ -9,14 +10,13 @@
 namespace lexcpp {
 
 struct DFAState {
-    // Transition table per byte; -1 means dead.
-    std::array<std::int32_t, 256> next{};
+    // Per-equivalence-class transition; size == DFA::nclasses. -1 = dead.
+    std::vector<std::int32_t> next;
     // Earliest accepting rule id whose pattern has no $ anchor; -1 if none.
     std::int32_t accept_normal = -1;
     // Earliest accepting rule id whose pattern ends with $ anchor; -1 if none.
     std::int32_t accept_eol    = -1;
-    // All accepting rules in this state's NFA-set, sorted ASC. Used for
-    // REJECT.
+    // All accepting rules in this state's NFA-set (sorted by id ASC).
     std::vector<std::int32_t> accept_list;
 };
 
@@ -28,8 +28,12 @@ struct DFAStart {
 struct DFA {
     std::vector<DFAState> states;
     std::vector<DFAStart> cond_starts;        // per condition id
+    Eclasses eclasses;                        // byte -> class id
+    int nclasses = 256;                       // == eclasses.nclasses
 };
 
-DFA build_dfa(const NFA& nfa);
+// Build a DFA. With use_eclasses=false, the alphabet stays at 256 bytes
+// (yy_ec is identity). Otherwise compute equivalence classes first.
+DFA build_dfa(const NFA& nfa, bool use_eclasses = false);
 
 } // namespace lexcpp

@@ -4,6 +4,7 @@ add_executable(lex
     source.cpp
     regex.cpp
     nfa.cpp
+    eclass.cpp
     dfa.cpp
     codegen.cpp
 )
