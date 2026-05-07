@@ -96,6 +96,35 @@ struct Parser {
                 continue;
             }
 
+            // %top { ... }  -- code emitted before standard includes.
+            if (c0 == '%' && src.compare(pos, 4, "%top") == 0) {
+                std::size_t save = pos;
+                std::uint32_t save_line = line;
+                std::uint32_t save_col = col;
+                for (int k = 0; k < 4; ++k) get();
+                while (!at_end() && (peek() == ' ' || peek() == '\t')) get();
+                if (peek() == '{') {
+                    if (out.section_top.empty()) out.section_top_loc = loc();
+                    get();      // consume '{'
+                    int depth = 1;
+                    while (!at_end() && depth > 0) {
+                        char c = peek();
+                        if (c == '{') { ++depth; out.section_top.push_back(get()); }
+                        else if (c == '}') {
+                            --depth;
+                            if (depth == 0) { get(); break; }
+                            out.section_top.push_back(get());
+                        } else {
+                            out.section_top.push_back(get());
+                        }
+                    }
+                    while (!at_end() && peek() != '\n') get();
+                    if (peek() == '\n') get();
+                    continue;
+                }
+                pos = save; line = save_line; col = save_col;
+            }
+
             // %{ ... %} verbatim block
             if (c0 == '%' && peek(1) == '{') {
                 if (out.section1_verbatim.empty())

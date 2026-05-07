@@ -32,6 +32,8 @@ struct LexFile {
     std::vector<std::pair<std::string, std::string>> defs; // name -> pattern
     std::vector<StartCond> conds;
     std::vector<Rule> rules;
+    std::string section_top;           // %top { ... } block
+    SourceLoc   section_top_loc;
     std::string section1_verbatim;     // %{ ... %} blocks from section 1
     SourceLoc   section1_loc;          // line where the verbatim block starts
     std::string section3;              // user-code section verbatim

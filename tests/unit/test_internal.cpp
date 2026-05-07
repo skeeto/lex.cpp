@@ -309,6 +309,17 @@ void test_start_cond_decl() {
     CHECK(r->conds[2].exclusive);
 }
 
+void test_top_block() {
+    std::fprintf(stderr, "test_top_block\n");
+    lexcpp::Diagnostics d;
+    auto r = lexcpp::parse_lex_file("<t>",
+        "%top {\n#define _GNU_SOURCE 1\n}\n"
+        "%option noyywrap\n%%\nfoo ECHO;\n%%\n", d);
+    CHECK(r.has_value());
+    CHECK(d.ok());
+    CHECK(r->section_top.find("_GNU_SOURCE") != std::string::npos);
+}
+
 void test_line_directives() {
     std::fprintf(stderr, "test_line_directives\n");
     lexcpp::Diagnostics d;
@@ -378,6 +389,7 @@ int main() {
     test_start_cond_decl();
     test_reentrant_option();
     test_bison_bridge_option();
+    test_top_block();
     test_line_directives();
     test_diag_warn();
 
