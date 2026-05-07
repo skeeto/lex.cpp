@@ -7,7 +7,8 @@ add_executable(lexcpp_unit
     ${CMAKE_SOURCE_DIR}/src/nfa.cpp
     ${CMAKE_SOURCE_DIR}/src/eclass.cpp
     ${CMAKE_SOURCE_DIR}/src/dfa.cpp
-    ${CMAKE_SOURCE_DIR}/src/codegen.cpp)
+    ${CMAKE_SOURCE_DIR}/src/codegen.cpp
+    ${CMAKE_SOURCE_DIR}/src/tables.cpp)
 
 target_include_directories(lexcpp_unit PRIVATE
     ${CMAKE_SOURCE_DIR}/src

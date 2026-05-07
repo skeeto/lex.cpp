@@ -6,6 +6,7 @@
 #include "nfa.hpp"
 #include "dfa.hpp"
 #include "codegen.hpp"
+#include "tables.hpp"
 
 #include <cstdio>
 #include <cstdlib>
@@ -354,6 +355,29 @@ void test_header_reentrant() {
     CHECK(h.find("extern char *yytext") == std::string::npos);
 }
 
+void test_tables_serialise() {
+    std::fprintf(stderr, "test_tables_serialise\n");
+    lexcpp::Diagnostics d;
+    auto file = lexcpp::parse_lex_file("<t>",
+        "%option noyywrap\n%%\n[a-z]+ ECHO;\n%%\n", d);
+    CHECK(file.has_value());
+    lexcpp::NFA nfa;
+    lexcpp::init_nfa(nfa, {"INITIAL"}, {0});
+    auto resolver = [](std::string_view) -> std::optional<std::string> {
+        return std::nullopt;
+    };
+    auto t = lexcpp::parse_regex("[a-z]+", resolver, false, d, {});
+    lexcpp::add_rule_to_nfa(nfa, t.get(), 0, {});
+    auto dfa = lexcpp::build_dfa(nfa, /*ec=*/true, /*meta=*/true);
+    auto bytes = lexcpp::serialise_tables(nfa, dfa, /*compressed=*/true, "yy");
+    CHECK(bytes.size() > 16);
+    // Magic in network order: 0xF1 3C 57 B1
+    CHECK(bytes[0] == 0xF1 && bytes[1] == 0x3C
+       && bytes[2] == 0x57 && bytes[3] == 0xB1);
+    // Version = 1
+    CHECK(bytes[4] == 0 && bytes[5] == 0 && bytes[6] == 0 && bytes[7] == 1);
+}
+
 void test_meta_classes() {
     std::fprintf(stderr, "test_meta_classes\n");
     // A grammar where two classes (lower-case letters and underscore)
@@ -456,6 +480,7 @@ int main() {
     test_reentrant_option();
     test_bison_bridge_option();
     test_meta_classes();
+    test_tables_serialise();
     test_top_block();
     test_header_emit();
     test_header_reentrant();

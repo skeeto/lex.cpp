@@ -7,6 +7,7 @@ add_executable(lex
     eclass.cpp
     dfa.cpp
     codegen.cpp
+    tables.cpp
 )
 
 target_include_directories(lex PRIVATE

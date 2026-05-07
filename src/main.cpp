@@ -4,6 +4,7 @@
 #include "nfa.hpp"
 #include "regex.hpp"
 #include "source.hpp"
+#include "tables.hpp"
 
 #include <cstdio>
 #include <cstdlib>
@@ -49,6 +50,7 @@ struct Args {
     bool prefix_set = false;
     bool noline = false;
     std::string header_path;     // empty == no header file
+    std::string tables_path;     // empty == no .tbl emission
     lexcpp::CompressMode compress = lexcpp::CompressMode::Compress;
 };
 
@@ -83,6 +85,8 @@ int parse_args(int argc, char** argv, Args& out, lexcpp::Diagnostics& diag) {
             out.compress = lexcpp::CompressMode::FullEc;
         } else if (a == "-Cem" || a == "--Cem" || a == "--compress") {
             out.compress = lexcpp::CompressMode::Compress;
+        } else if (starts_with(a, "--tables-file=")) {
+            out.tables_path = std::string(a.substr(14));
         } else if (starts_with(a, "--header-file=")) {
             out.header_path = std::string(a.substr(14));
         } else if (a == "--header-file") {
@@ -279,6 +283,18 @@ int main(int argc, char** argv) {
             return 1;
         }
         of.write(out.data(), static_cast<std::streamsize>(out.size()));
+    }
+
+    // Companion table file.
+    if (!args.tables_path.empty()) {
+        bool ok = lexcpp::write_tables_file(
+            args.tables_path, nfa, dfa,
+            args.compress == lexcpp::CompressMode::Compress,
+            "yy");
+        if (!ok) {
+            diag.error({}, "cannot write tables file: " + args.tables_path);
+            return 1;
+        }
     }
 
     // Companion header.
