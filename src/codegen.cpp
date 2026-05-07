@@ -100,17 +100,57 @@ void append_2d_array(std::string& out, std::string_view name,
     out += "\n};\n";
 }
 
+// Public symbols flex renames via `%option prefix=...`. Keep this list
+// in sync with the runtime's externally visible names; users that rely
+// on flex-style prefixing (PostgreSQL, Bison, Wireshark, ...) need every
+// one of these to be #define-renamed.
 const char* kPrefixSyms[] = {
+    // globals (non-reentrant)
     "yytext", "yyleng", "yylineno", "yyin", "yyout",
+    // entry points / lifecycle
     "yylex", "yywrap", "yyrestart",
+    "yylex_init", "yylex_init_extra", "yylex_destroy",
+    // buffer management
     "yy_scan_string", "yy_scan_buffer", "yy_scan_bytes",
-    "yy_create_buffer", "yy_delete_buffer", "yy_switch_to_buffer",
-    "yy_flush_buffer",
+    "yy_create_buffer", "yy_delete_buffer", "yy_init_buffer",
+    "yy_flush_buffer", "yy_load_buffer_state",
+    "yy_switch_to_buffer",
+    "yypush_buffer_state", "yypop_buffer_state",
+    "yyensure_buffer_stack",
+    // accessors (reentrant)
+    "yyget_debug", "yyset_debug",
+    "yyget_extra", "yyset_extra",
+    "yyget_in",    "yyset_in",
+    "yyget_out",   "yyset_out",
+    "yyget_leng",
+    "yyget_text",
+    "yyget_lineno", "yyset_lineno",
+    "yyget_column", "yyset_column",
+    "yyget_lval",   "yyset_lval",
+    "yyget_lloc",   "yyset_lloc",
+    // start-condition stack
+    "yy_push_state", "yy_pop_state", "yy_top_state",
+    // user-overridable allocator hooks
+    "yyalloc", "yyrealloc", "yyfree",
+    // debug toggle
+    "yy_flex_debug",
 };
 
-void emit_prefix_defines(std::string& out, const std::string& pfx) {
+// Symbols that are real globals only in non-reentrant mode. In
+// reentrant mode they are macros into the yyguts_t struct, so prefix
+// renaming would create a `#define yytext abc_text` in the user
+// section followed by a `#define yytext (yyg->yytext_r)` in the
+// runtime, redefining yytext and breaking the rename. Skip them.
+[[nodiscard]] bool is_reentrant_only_global(std::string_view sym) {
+    return sym == "yytext" || sym == "yyleng" || sym == "yylineno" ||
+           sym == "yyin"   || sym == "yyout";
+}
+
+void emit_prefix_defines(std::string& out, const LexFile& f) {
+    const std::string& pfx = f.options.prefix;
     if (pfx == "yy") return;
     for (const char* sym : kPrefixSyms) {
+        if (f.options.reentrant && is_reentrant_only_global(sym)) continue;
         std::string repl = pfx + (sym + 2);  // skip leading "yy"
         out += "#define ";
         out += sym;
@@ -240,10 +280,16 @@ std::string yy_lex_body_reject(const LexFile& f, const NFA& nfa,
     int nrules = static_cast<int>(rm.total_nfa_rules);
     if (nrules <= 0) nrules = 1;
     s << "YY_DECL\n{\n";
+    if (f.options.reentrant) {
+        // flex convention: yytext/yyleng/etc. are macros into `yyg`.
+        // Declaring it here makes them work in user actions without
+        // each .l file having to do it itself.
+        s << "    struct yyguts_t *yyg = (struct yyguts_t *)yyscanner;\n";
+    }
     if (f.options.bison_bridge)
-        s << "    YY_G->yylval_r = yylval_param;\n";
+        s << "    yyg->yylval_r = yylval_param;\n";
     if (f.options.bison_locations)
-        s << "    YY_G->yylloc_r = yylloc_param;\n";
+        s << "    yyg->yylloc_r = yylloc_param;\n";
     s << "    if (!yyin) yyin = stdin;\n";
     s << "    if (!yyout) yyout = stdout;\n";
     s << "    int yy_first = !yy_init_done;\n";
@@ -321,7 +367,7 @@ std::string yy_lex_body_reject(const LexFile& f, const NFA& nfa,
     s << "        }\n";
     s << "        if (yy_rule < 0 || yy_len == 0) {\n";
     if (f.options.nodefault) {
-        s << "            yy_jam_report(YY_CALLPM); exit(2);\n";
+        s << "            yy_jam_report(YY_CALLPM); yyterminate();\n";
     } else {
         s << "            if (yy_buf_pos < yy_buf_end) {\n";
         s << "                unsigned char yy_d = (unsigned char)yy_buf[yy_buf_pos++];\n";
@@ -355,9 +401,15 @@ std::string yy_lex_body_reject(const LexFile& f, const NFA& nfa,
         s << "            if (yytext[yy_i] == '\\n') yylineno++;\n";
     }
     s << "        yy_at_bol = (yy_len > 0 && yytext[yy_len - 1] == '\\n');\n";
-    s << "        if (yy_flex_debug) fprintf(stderr,\n";
-    s << "            \"--accepting rule at line %d (\\\"%s\\\")\\n\",\n";
-    s << "            yy_rule_line[yy_rule], yytext);\n";
+    if (f.options.debug) {
+        // flex only emits the debug trace block when `%option debug`
+        // is set. Doing it unconditionally trips on user code that
+        // overrides `fprintf` via macro (PostgreSQL's bootscanner does
+        // exactly this) because the macro arity won't match.
+        s << "        if (yy_flex_debug) fprintf(stderr,\n";
+        s << "            \"--accepting rule at line %d (\\\"%s\\\")\\n\",\n";
+        s << "            yy_rule_line[yy_rule], yytext);\n";
+    }
     s << "        #ifdef YY_USER_ACTION\n";
     s << "        YY_USER_ACTION\n";
     s << "        #endif\n";
@@ -398,10 +450,13 @@ std::string yy_lex_body(const LexFile& f, const DFA& dfa, const NFA& nfa,
     (void)dfa;
     std::ostringstream s;
     s << "YY_DECL\n{\n";
+    if (f.options.reentrant) {
+        s << "    struct yyguts_t *yyg = (struct yyguts_t *)yyscanner;\n";
+    }
     if (f.options.bison_bridge)
-        s << "    YY_G->yylval_r = yylval_param;\n";
+        s << "    yyg->yylval_r = yylval_param;\n";
     if (f.options.bison_locations)
-        s << "    YY_G->yylloc_r = yylloc_param;\n";
+        s << "    yyg->yylloc_r = yylloc_param;\n";
     s << "    if (!yyin) yyin = stdin;\n";
     s << "    if (!yyout) yyout = stdout;\n";
     s << "    int yy_first = !yy_init_done;\n";
@@ -522,7 +577,7 @@ std::string yy_lex_body(const LexFile& f, const DFA& dfa, const NFA& nfa,
     s << "        }\n";
     s << "        if (yy_rule < 0) {\n";
     if (f.options.nodefault) {
-        s << "            yy_jam_report(YY_CALLPM); exit(2);\n";
+        s << "            yy_jam_report(YY_CALLPM); yyterminate();\n";
     } else {
         s << "            unsigned char yy_d = (unsigned char)yy_buf[yy_buf_pos++];\n";
         s << "            (void)fputc((int)yy_d, yyout);\n";
@@ -576,9 +631,15 @@ std::string yy_lex_body(const LexFile& f, const DFA& dfa, const NFA& nfa,
         s << "            if (yytext[yy_i] == '\\n') yylineno++;\n";
     }
     s << "        yy_at_bol = (yy_len > 0 && yytext[yy_len - 1] == '\\n');\n";
-    s << "        if (yy_flex_debug) fprintf(stderr,\n";
-    s << "            \"--accepting rule at line %d (\\\"%s\\\")\\n\",\n";
-    s << "            yy_rule_line[yy_rule], yytext);\n";
+    if (f.options.debug) {
+        // flex only emits the debug trace block when `%option debug`
+        // is set. Doing it unconditionally trips on user code that
+        // overrides `fprintf` via macro (PostgreSQL's bootscanner does
+        // exactly this) because the macro arity won't match.
+        s << "        if (yy_flex_debug) fprintf(stderr,\n";
+        s << "            \"--accepting rule at line %d (\\\"%s\\\")\\n\",\n";
+        s << "            yy_rule_line[yy_rule], yytext);\n";
+    }
     s << "        #ifdef YY_USER_ACTION\n";
     s << "        YY_USER_ACTION\n";
     s << "        #endif\n";
@@ -632,7 +693,7 @@ std::string emit_c(const CodegenInput& in) {
     // Forward typedefs so user code in %{ ... %} can name yyscan_t.
     out += "typedef struct yy_buffer_state *YY_BUFFER_STATE;\n";
     if (f.options.reentrant)
-        out += "typedef struct yyguts_t *yyscan_t;\n";
+        out += "typedef void *yyscan_t;\n";
     out += "\n";
 
     // User %{ %} block(s)
@@ -648,7 +709,7 @@ std::string emit_c(const CodegenInput& in) {
     }
 
     // Prefix renames
-    emit_prefix_defines(out, f.options.prefix);
+    emit_prefix_defines(out, f);
 
     // Condition constants
     emit_cond_defines(out, f);
@@ -657,6 +718,12 @@ std::string emit_c(const CodegenInput& in) {
     out += "#define YY_TRACK_LINENO ";
     out += (f.options.yylineno ? "1" : "0");
     out += "\n";
+    // %option no{yyalloc,yyrealloc,yyfree}: suppress emission of the
+    // default allocator hooks; the user provides their own (PostgreSQL
+    // routes everything through palloc/repalloc/pfree this way).
+    if (f.options.noyyalloc)   out += "#define YY_NO_YYALLOC 1\n";
+    if (f.options.noyyrealloc) out += "#define YY_NO_YYREALLOC 1\n";
+    if (f.options.noyyfree)    out += "#define YY_NO_YYFREE 1\n";
     // %option array selects the fixed-buffer yytext layout.
     out += "#define YY_ARRAY ";
     out += (f.options.array ? "1" : "0");
@@ -943,7 +1010,7 @@ std::string emit_h(const CodegenInput& in) {
 
     h += "typedef struct yy_buffer_state *YY_BUFFER_STATE;\n";
     if (f.options.reentrant)
-        h += "typedef struct yyguts_t *yyscan_t;\n";
+        h += "typedef void *yyscan_t;\n";
     h += "\n";
 
     h += "/* start conditions */\n";

@@ -28,6 +28,21 @@ struct yy_buffer_state {
 #define YYLMAX 8192
 #endif
 
+/* Defaults for bison interop. The bison-generated header normally
+   provides YYSTYPE/YYLTYPE plus YYSTYPE_IS_DECLARED/YYLTYPE_IS_DECLARED
+   before the runtime is included (PostgreSQL, GCC, ...); the fallbacks
+   let non-bison-bridge scanners still compile cleanly. Probe both the
+   `*_IS_DECLARED` flag (bison convention) and the macro itself (some
+   .l files spell it `#define YYLTYPE int` -- PostgreSQL does). */
+#if !defined(YYSTYPE) && !defined(YYSTYPE_IS_DECLARED)
+typedef int YYSTYPE;
+#define YYSTYPE_IS_DECLARED 1
+#endif
+#if !defined(YYLTYPE) && !defined(YYLTYPE_IS_DECLARED)
+typedef int YYLTYPE;
+#define YYLTYPE_IS_DECLARED 1
+#endif
+
 struct yyguts_t {
     YY_BUFFER_STATE *yy_buffer_stack_r;
     size_t           yy_buffer_stack_max_r;
@@ -50,9 +65,13 @@ struct yyguts_t {
     int              yy_init_done_r;
     int              yy_more_flag_r;
     int              yy_more_offset_r;
-    void            *yyextra_r;
-    void            *yylval_r;     /* bison-bridge: YYSTYPE*  */
-    void            *yylloc_r;     /* bison-locations: YYLTYPE* */
+    YY_EXTRA_TYPE    yyextra_r;    /* user-provided type via %option extra-type */
+    /* bison-bridge / bison-locations: typed so that *yylval / *yylloc
+       work as proper lvalues at the call site (PostgreSQL's scan.l
+       relies on this). The user's bison-generated header provides
+       YYSTYPE/YYLTYPE before the runtime is included. */
+    YYSTYPE         *yylval_r;
+    YYLTYPE         *yylloc_r;
 };
 typedef struct yyguts_t yyguts_t;
 
@@ -63,15 +82,28 @@ typedef struct yyguts_t yyguts_t;
 #define YY_DECLPM_C   , yyscan_t yyscanner
 #define YY_CALLPM     yyscanner
 #define YY_CALLPM_C   , yyscanner
+/* Place at the top of every reentrant helper that touches the
+   yytext/yyleng/yylineno/yyin/yyout/yyextra macros (they expand to
+   yyg->...). The (void)yyg cast suppresses unused warnings in
+   functions that only use the macros indirectly. */
+#define YY_PRELUDE    struct yyguts_t *yyg = (struct yyguts_t *)yyscanner; \
+                      (void)yyg;
 
 /* In reentrant mode, the public yy* names resolve through the
    parameter. They are macros, so an `extern char *yytext;` in user
    code is a compile error -- as it should be. */
-#define yytext         (YY_G->yytext_r)
-#define yyleng         (YY_G->yyleng_r)
-#define yylineno       (YY_G->yylineno_r)
-#define yyin           (YY_G->yyin_r)
-#define yyout          (YY_G->yyout_r)
+/* Reentrant accessors. flex's convention is that the caller declares
+   `struct yyguts_t *yyg = (struct yyguts_t *)scanner;` and these
+   macros expand to `yyg->...`. Codegen does this declaration at the
+   top of the yylex() body. User code that calls yytext/yyleng/etc.
+   from outside yylex (e.g. PostgreSQL's guc-file flow) must declare
+   its own yyg pointer the same way. */
+#define yytext         (yyg->yytext_r)
+#define yyleng         (yyg->yyleng_r)
+#define yylineno       (yyg->yylineno_r)
+#define yyin           (yyg->yyin_r)
+#define yyout          (yyg->yyout_r)
+#define yyextra        (yyg->yyextra_r)
 
 #else
 /* Non-reentrant: real globals. */
@@ -81,6 +113,7 @@ static yyguts_t yy_global_guts_;
 #define YY_DECLPM_C
 #define YY_CALLPM
 #define YY_CALLPM_C
+#define YY_PRELUDE    /* nothing in non-reentrant mode */
 
 #if YY_ARRAY
 char  yytext[YYLMAX];
@@ -122,6 +155,44 @@ FILE *yyout    = 0;
 extern int yywrap(void);
 #endif
 
+/* yy_size_t is a flex compatibility alias for size_t; some user .l
+   files reference it directly (PostgreSQL, ecpg). */
+typedef size_t yy_size_t;
+
+/* User-overridable allocator hooks. flex routes ALL allocation through
+   yyalloc/yyrealloc/yyfree so applications can substitute palloc-like
+   backends. The default is plain malloc/realloc/free. Suppressed via
+   `%option noyyalloc` etc. when the user provides their own. */
+#ifndef YY_NO_YYALLOC
+static void *yyalloc(yy_size_t n YY_DECLPM_C) {
+    return malloc(n);
+}
+#endif
+#ifndef YY_NO_YYREALLOC
+static void *yyrealloc(void *p, yy_size_t n YY_DECLPM_C) {
+    return realloc(p, n);
+}
+#endif
+#ifndef YY_NO_YYFREE
+static void yyfree(void *p YY_DECLPM_C) {
+    free(p);
+}
+#endif
+
+/* Fatal-error reporting. Routed through a single helper so that user
+   code that overrides fprintf via macros (e.g. PostgreSQL's
+   `#define fprintf(file, fmt, msg) fprintf_to_ereport(fmt, msg)`)
+   doesn't trip on our internal calls. Override either YY_FATAL_ERROR
+   or yy_fatal_error to redirect. */
+static void yy_fatal_error(const char *msg YY_DECLPM_C) {
+    fputs(msg, stderr);
+    fputc('\n', stderr);
+    exit(2);
+}
+#ifndef YY_FATAL_ERROR
+#define YY_FATAL_ERROR(msg) yy_fatal_error(msg YY_CALLPM_C)
+#endif
+
 /* GCC's own bootstrap poisons calloc/strdup/strndup via
  *   #pragma GCC poison calloc strdup strndup
  * in gcc/system.h. We avoid calloc entirely; users embedding the
@@ -134,29 +205,29 @@ static void *yy_zalloc(size_t n) {
 
 /* ---- buffer-stack management --------------------------------------- */
 
-static void yyensure_buffer_stack(YY_DECLPM) {
+static void yyensure_buffer_stack(YY_DECLPM) { YY_PRELUDE
     if (!yy_buffer_stack) {
         yy_buffer_stack_max = 1;
         yy_buffer_stack = (YY_BUFFER_STATE*)
             yy_zalloc(yy_buffer_stack_max * sizeof(YY_BUFFER_STATE));
         if (!yy_buffer_stack) {
-            fprintf(stderr, "lex: out of memory\n"); exit(2);
+            YY_FATAL_ERROR("lex: out of memory");
         }
         yy_buffer_stack_top = 0;
     }
 }
 
-static void yy_grow_stack(YY_DECLPM) {
+static void yy_grow_stack(YY_DECLPM) { YY_PRELUDE
     size_t new_max = yy_buffer_stack_max ? yy_buffer_stack_max * 2 : 4;
     YY_BUFFER_STATE *p = (YY_BUFFER_STATE*)
         realloc(yy_buffer_stack, new_max * sizeof(YY_BUFFER_STATE));
-    if (!p) { fprintf(stderr, "lex: out of memory\n"); exit(2); }
+    if (!p) { YY_FATAL_ERROR("lex: out of memory"); }
     for (size_t i = yy_buffer_stack_max; i < new_max; ++i) p[i] = 0;
     yy_buffer_stack = p;
     yy_buffer_stack_max = new_max;
 }
 
-YY_BUFFER_STATE yy_create_buffer(FILE *file, int size YY_DECLPM_C) {
+YY_BUFFER_STATE yy_create_buffer(FILE *file, int size YY_DECLPM_C) { YY_PRELUDE
     YY_BUFFER_STATE b = (YY_BUFFER_STATE)yy_zalloc(sizeof(*b));
     if (!b) return 0;
     b->yyb_size = (size > 0) ? (size_t)size : YY_BUF_SIZE;
@@ -173,13 +244,13 @@ YY_BUFFER_STATE yy_create_buffer(FILE *file, int size YY_DECLPM_C) {
     return b;
 }
 
-void yy_delete_buffer(YY_BUFFER_STATE b YY_DECLPM_C) {
+void yy_delete_buffer(YY_BUFFER_STATE b YY_DECLPM_C) { YY_PRELUDE
     if (!b) return;
     if (b->yy_is_our_buffer) free(b->yyb_data);
     free(b);
 }
 
-void yy_flush_buffer(YY_BUFFER_STATE b YY_DECLPM_C) {
+void yy_flush_buffer(YY_BUFFER_STATE b YY_DECLPM_C) { YY_PRELUDE
     if (!b) return;
     b->yyb_pos = 0;
     b->yyb_end = 0;
@@ -191,14 +262,14 @@ void yy_flush_buffer(YY_BUFFER_STATE b YY_DECLPM_C) {
     }
 }
 
-void yy_switch_to_buffer(YY_BUFFER_STATE b YY_DECLPM_C) {
+void yy_switch_to_buffer(YY_BUFFER_STATE b YY_DECLPM_C) { YY_PRELUDE
     yyensure_buffer_stack(YY_CALLPM);
     if (YY_CURRENT_BUFFER == b) return;
     YY_CURRENT_BUFFER_LVALUE = b;
     if (b) yyin = b->yy_input_file;
 }
 
-void yypush_buffer_state(YY_BUFFER_STATE b YY_DECLPM_C) {
+void yypush_buffer_state(YY_BUFFER_STATE b YY_DECLPM_C) { YY_PRELUDE
     yyensure_buffer_stack(YY_CALLPM);
     if (YY_CURRENT_BUFFER) {
         ++yy_buffer_stack_top;
@@ -208,7 +279,7 @@ void yypush_buffer_state(YY_BUFFER_STATE b YY_DECLPM_C) {
     if (b) yyin = b->yy_input_file;
 }
 
-void yypop_buffer_state(YY_DECLPM) {
+void yypop_buffer_state(YY_DECLPM) { YY_PRELUDE
     if (!yy_buffer_stack) return;
     yy_delete_buffer(YY_CURRENT_BUFFER YY_CALLPM_C);
     YY_CURRENT_BUFFER_LVALUE = 0;
@@ -220,7 +291,7 @@ void yypop_buffer_state(YY_DECLPM) {
 
 /* ---- scan-from-memory entry points --------------------------------- */
 
-YY_BUFFER_STATE yy_scan_buffer(char *base, size_t size YY_DECLPM_C) {
+YY_BUFFER_STATE yy_scan_buffer(char *base, size_t size YY_DECLPM_C) { YY_PRELUDE
     if (size < 2 || base[size - 2] != 0 || base[size - 1] != 0) return 0;
     YY_BUFFER_STATE b = (YY_BUFFER_STATE)yy_zalloc(sizeof(*b));
     if (!b) return 0;
@@ -235,7 +306,7 @@ YY_BUFFER_STATE yy_scan_buffer(char *base, size_t size YY_DECLPM_C) {
     return b;
 }
 
-YY_BUFFER_STATE yy_scan_bytes(const char *bytes, int len YY_DECLPM_C) {
+YY_BUFFER_STATE yy_scan_bytes(const char *bytes, int len YY_DECLPM_C) { YY_PRELUDE
     if (len < 0) len = 0;
     size_t n = (size_t)len;
     char *buf = (char*)malloc(n + 2);
@@ -256,18 +327,18 @@ YY_BUFFER_STATE yy_scan_bytes(const char *bytes, int len YY_DECLPM_C) {
     return b;
 }
 
-YY_BUFFER_STATE yy_scan_string(const char *s YY_DECLPM_C) {
+YY_BUFFER_STATE yy_scan_string(const char *s YY_DECLPM_C) { YY_PRELUDE
     return yy_scan_bytes(s, s ? (int)strlen(s) : 0 YY_CALLPM_C);
 }
 
 /* ---- buffer-aware low-level helpers -------------------------------- */
 
-static void yy_buf_grow(YY_BUFFER_STATE b, size_t want) {
+static void yy_buf_grow(YY_BUFFER_STATE b, size_t want YY_DECLPM_C) { YY_PRELUDE
     if (b->yyb_size >= want) return;
     size_t s = b->yyb_size ? b->yyb_size : 4096;
     while (s < want) s *= 2;
     char *p = (char*)realloc(b->yyb_data, s + 2);
-    if (!p) { fprintf(stderr, "lex: out of memory\n"); exit(2); }
+    if (!p) { YY_FATAL_ERROR("lex: out of memory"); }
     b->yyb_data = p;
     b->yyb_size = s;
     b->yyb_data[b->yyb_end]     = 0;
@@ -280,10 +351,10 @@ static void yy_buf_grow(YY_BUFFER_STATE b, size_t want) {
     ((result) = fread((buf), 1, (max_size), yyin))
 #endif
 
-static void yy_refill(YY_DECLPM) {
+static void yy_refill(YY_DECLPM) { YY_PRELUDE
     YY_BUFFER_STATE b = YY_CURRENT_BUFFER;
     if (!b || b->yyb_done) return;
-    yy_buf_grow(b, b->yyb_end + 4096);
+    yy_buf_grow(b, b->yyb_end + 4096 YY_CALLPM_C);
     size_t n = 0;
     {
         char *yy_input_buf = b->yyb_data + b->yyb_end;
@@ -296,13 +367,13 @@ static void yy_refill(YY_DECLPM) {
     b->yyb_data[b->yyb_end + 1] = 0;
 }
 
-static void yy_slurp(YY_DECLPM) {
+static void yy_slurp(YY_DECLPM) { YY_PRELUDE
     YY_BUFFER_STATE b = YY_CURRENT_BUFFER;
     if (!b) return;
     while (!b->yyb_done) yy_refill(YY_CALLPM);
 }
 
-static void yy_init_default_buffer(YY_DECLPM) {
+static void yy_init_default_buffer(YY_DECLPM) { YY_PRELUDE
     yyensure_buffer_stack(YY_CALLPM);
     if (!YY_CURRENT_BUFFER) {
         if (!yyin) yyin = stdin;
@@ -312,7 +383,7 @@ static void yy_init_default_buffer(YY_DECLPM) {
     yy_init_done = 1;
 }
 
-void yyrestart(FILE *new_input YY_DECLPM_C) {
+void yyrestart(FILE *new_input YY_DECLPM_C) { YY_PRELUDE
     yyensure_buffer_stack(YY_CALLPM);
     if (!YY_CURRENT_BUFFER) {
         YY_CURRENT_BUFFER_LVALUE = yy_create_buffer(new_input, YY_BUF_SIZE YY_CALLPM_C);
@@ -337,13 +408,13 @@ void yyrestart(FILE *new_input YY_DECLPM_C) {
 
 /* ---- yytext sealing ------------------------------------------------ */
 
-static void yy_text_seal(YY_DECLPM) {
+static void yy_text_seal(YY_DECLPM) { YY_PRELUDE
     if (yy_text_active && yytext) {
         yy_text_save = yytext[yyleng];
         yytext[yyleng] = 0;
     }
 }
-static void yy_text_unseal(YY_DECLPM) {
+static void yy_text_unseal(YY_DECLPM) { YY_PRELUDE
     if (yy_text_active && yytext) {
         yytext[yyleng] = yy_text_save;
         yy_text_active = 0;
@@ -352,12 +423,12 @@ static void yy_text_unseal(YY_DECLPM) {
 
 /* ---- unput / input / yyless --------------------------------------- */
 
-static void yy_unput(int c YY_DECLPM_C) {
+static void yy_unput(int c YY_DECLPM_C) { YY_PRELUDE
     yy_text_unseal(YY_CALLPM);
     YY_BUFFER_STATE b = YY_CURRENT_BUFFER;
     if (!b) return;
     if (b->yyb_pos == 0) {
-        yy_buf_grow(b, b->yyb_end + 1);
+        yy_buf_grow(b, b->yyb_end + 1 YY_CALLPM_C);
         memmove(b->yyb_data + 1, b->yyb_data, b->yyb_end);
         b->yyb_end += 1;
         b->yyb_pos = 1;
@@ -366,7 +437,7 @@ static void yy_unput(int c YY_DECLPM_C) {
     b->yyb_at_bol = (c == '\n') ? 1 : 0;
 }
 
-static int yy_input(YY_DECLPM) {
+static int yy_input(YY_DECLPM) { YY_PRELUDE
     yy_text_unseal(YY_CALLPM);
     YY_BUFFER_STATE b = YY_CURRENT_BUFFER;
     if (!b) return 0;
@@ -377,7 +448,7 @@ static int yy_input(YY_DECLPM) {
     return (int)c;
 }
 
-static void yy_do_yyless(int n YY_DECLPM_C) {
+static void yy_do_yyless(int n YY_DECLPM_C) { YY_PRELUDE
     YY_BUFFER_STATE b = YY_CURRENT_BUFFER;
     yytext[yyleng] = yy_text_save;
     b->yyb_pos -= (size_t)(yyleng - n);
@@ -389,10 +460,10 @@ static void yy_do_yyless(int n YY_DECLPM_C) {
 
 /* ---- start-condition stack ---------------------------------------- */
 
-static void yy_grow_state_stack(YY_DECLPM) {
+static void yy_grow_state_stack(YY_DECLPM) { YY_PRELUDE
     size_t new_max = yy_state_stack_max ? yy_state_stack_max * 2 : 16;
     int *p = (int*)realloc(yy_state_stack, new_max * sizeof(int));
-    if (!p) { fprintf(stderr, "lex: out of memory\n"); exit(2); }
+    if (!p) { YY_FATAL_ERROR("lex: out of memory"); }
     yy_state_stack = p;
     yy_state_stack_max = new_max;
 }
@@ -404,15 +475,14 @@ void yy_push_state(int new_state YY_DECLPM_C) {
     yy_start = new_state;
 }
 
-void yy_pop_state(YY_DECLPM) {
+void yy_pop_state(YY_DECLPM) { YY_PRELUDE
     if (yy_state_stack_top == 0) return;
     yy_start = yy_state_stack[--yy_state_stack_top];
 }
 
-int yy_top_state(YY_DECLPM) {
+int yy_top_state(YY_DECLPM) { YY_PRELUDE
     if (yy_state_stack_top == 0) {
-        fprintf(stderr, "yy_top_state(): empty stack\n");
-        exit(2);
+        YY_FATAL_ERROR("yy_top_state(): empty stack");
     }
     return yy_state_stack[yy_state_stack_top - 1];
 }
@@ -420,21 +490,27 @@ int yy_top_state(YY_DECLPM) {
 /* Diagnostic emitted on jam (no rule matched, %option nodefault).
    Reports the offending byte (printable form when possible), buffer
    offset, current start condition, and the line number when
-   yylineno tracking is enabled. */
-static void yy_jam_report(YY_DECLPM) {
+   yylineno tracking is enabled. Routed through YY_FATAL_ERROR so a
+   user override (e.g. PostgreSQL's ereport-based handler) gets the
+   message instead of stderr. */
+static void yy_jam_report(YY_DECLPM) { YY_PRELUDE
     YY_BUFFER_STATE b = YY_CURRENT_BUFFER;
     unsigned char ch = (b && b->yyb_pos < b->yyb_end)
         ? (unsigned char)b->yyb_data[b->yyb_pos] : 0;
     size_t off = b ? b->yyb_pos : 0;
+    char buf[160];
     if (ch >= 0x20 && ch < 0x7f && ch != '\\' && ch != '\'') {
-        fprintf(stderr, "scanner jammed at byte 0x%02x ('%c'), "
-                        "offset %zu, line %d, start-condition %d\n",
-                ch, ch, off, yylineno, yy_start);
+        snprintf(buf, sizeof buf,
+                 "scanner jammed at byte 0x%02x ('%c'), "
+                 "offset %zu, line %d, start-condition %d",
+                 ch, ch, off, yylineno, yy_start);
     } else {
-        fprintf(stderr, "scanner jammed at byte 0x%02x, "
-                        "offset %zu, line %d, start-condition %d\n",
-                ch, off, yylineno, yy_start);
+        snprintf(buf, sizeof buf,
+                 "scanner jammed at byte 0x%02x, "
+                 "offset %zu, line %d, start-condition %d",
+                 ch, off, yylineno, yy_start);
     }
+    YY_FATAL_ERROR(buf);
 }
 
 /* The codegen-emitted yylex body refers to these as bare names; expose
@@ -449,8 +525,18 @@ static void yy_jam_report(YY_DECLPM) {
 #define yymore()        ((void)(yy_more_flag = 1))
 #define yy_set_bol(at)  ((void)(yy_at_bol = (at) ? 1 : 0))
 #define YY_AT_BOL()     (yy_at_bol)
-#define BEGIN(s)        ((void)(yy_start = (s)))
+/* flex permits both `BEGIN(X)` and `BEGIN X;` -- expressed via a
+   trick where BEGIN expands to a partial assignment. We mimic that. */
+#define BEGIN           yy_start =
 #define YY_START        (yy_start)
+/* flex synonym for YY_START. */
+#define YYSTATE         YY_START
+/* flex's sentinel byte at the end of the input buffer. We don't use it
+   internally (our buffer is positionally bounded), but user .l files
+   sometimes test against it directly (PostgreSQL's scan.l does). */
+#ifndef YY_END_OF_BUFFER_CHAR
+#define YY_END_OF_BUFFER_CHAR 0
+#endif
 #define ECHO            (void)fwrite(yytext, 1, (size_t)yyleng, yyout)
 /* yyterminate() returns 0; yyterminate(VAL) returns VAL.
  * Uses __VA_OPT__ -- standard in C2x, accepted by gcc/clang as a
@@ -474,7 +560,7 @@ int yylex_init(yyscan_t *scanner) {
     return 0;
 }
 
-int yylex_init_extra(void *user_extra, yyscan_t *scanner) {
+int yylex_init_extra(YY_EXTRA_TYPE user_extra, yyscan_t *scanner) {
     int rc = yylex_init(scanner);
     if (rc) return rc;
     ((yyguts_t*)*scanner)->yyextra_r = user_extra;
@@ -509,8 +595,8 @@ FILE *yyget_in(yyscan_t s)  { return ((yyguts_t*)s)->yyin_r; }
 void  yyset_in(FILE *f, yyscan_t s) { ((yyguts_t*)s)->yyin_r = f; }
 FILE *yyget_out(yyscan_t s) { return ((yyguts_t*)s)->yyout_r; }
 void  yyset_out(FILE *f, yyscan_t s){ ((yyguts_t*)s)->yyout_r = f; }
-void *yyget_extra(yyscan_t s){ return ((yyguts_t*)s)->yyextra_r; }
-void  yyset_extra(void *v, yyscan_t s){ ((yyguts_t*)s)->yyextra_r = v; }
+YY_EXTRA_TYPE yyget_extra(yyscan_t s){ return ((yyguts_t*)s)->yyextra_r; }
+void  yyset_extra(YY_EXTRA_TYPE v, yyscan_t s){ ((yyguts_t*)s)->yyextra_r = v; }
 int   yyget_debug(yyscan_t s){ (void)s; return 0; }
 void  yyset_debug(int v, yyscan_t s){ (void)v; (void)s; }
 
@@ -525,6 +611,6 @@ static inline FILE *yyget_in_r(yyscan_t s) { return yyget_in(s); }
 static inline void  yyset_in_r(FILE *f, yyscan_t s) { yyset_in(f, s); }
 static inline FILE *yyget_out_r(yyscan_t s) { return yyget_out(s); }
 static inline void  yyset_out_r(FILE *f, yyscan_t s) { yyset_out(f, s); }
-static inline void *yyget_extra_r(yyscan_t s) { return yyget_extra(s); }
-static inline void  yyset_extra_r(void *v, yyscan_t s) { yyset_extra(v, s); }
+static inline YY_EXTRA_TYPE yyget_extra_r(yyscan_t s) { return yyget_extra(s); }
+static inline void  yyset_extra_r(YY_EXTRA_TYPE v, yyscan_t s) { yyset_extra(v, s); }
 #endif

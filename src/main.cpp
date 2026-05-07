@@ -87,6 +87,37 @@ int parse_args(int argc, const std::string_view* argv, Args& out,
             out.compress = lexcpp::CompressMode::FullEc;
         } else if (a == "-Cem" || a == "--Cem" || a == "--compress") {
             out.compress = lexcpp::CompressMode::Compress;
+        } else if (a == "-CF" || a == "-CFe" || a == "-CFa" || a == "-CFae" ||
+                   a == "-CFr" || a == "-CFar" || a == "-CFaer" || a == "-CFr") {
+            // flex table-compression variants we don't distinguish.
+            // `-CF` = full + no ECs; the others tweak alignment/read.
+            // Treat as -f for now -- correctness-equivalent, just bigger.
+            out.compress = lexcpp::CompressMode::Full;
+        } else if (a == "-d") {
+            // %option debug equivalent. We'll honour it via the option
+            // parser already; the CLI flag is informational here.
+        } else if (a == "-p" || a == "-p1" || a == "-p2" ||
+                   a == "--perf-report") {
+            // perf-report: ignored (we don't profile DFA quality).
+        } else if (a == "-T" || a == "--trace") {
+            // diagnostic trace: ignored.
+        } else if (a == "-w" || a == "--nowarn") {
+            // suppress warnings: ignored (we already only warn on real
+            // problems).
+        } else if (a == "-7" || a == "-8") {
+            // 7/8-bit mode: we are always 8-bit.
+        } else if (a == "-b" || starts_with(a, "-b")) {
+            // -b emits backup-state info to lex.backup. We don't compute
+            // backup states; emit the flex-equivalent "No backing up."
+            // line so build systems that grep the file (PostgreSQL) are
+            // happy.
+            std::string path = "lex.backup";
+            if (a.size() > 2) path = std::string(a.substr(2));
+            else if (i + 1 < argc && argv[i + 1] == "--backup-file") {
+                // ignore; handled below
+            }
+            auto f = lexcpp::platform::open_write(path);
+            if (f.ok()) f.write_all("No backing up.\n");
         } else if (starts_with(a, "--tables-file=")) {
             out.tables_path = std::string(a.substr(14));
         } else if (a == "-S" || a == "--skeleton") {

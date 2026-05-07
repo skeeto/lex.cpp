@@ -2,6 +2,8 @@
 %{
 typedef union { int n; int len; } YYSTYPE;
 typedef struct { int first_line; int last_line; } YYLTYPE;
+#define YYSTYPE_IS_DECLARED 1
+#define YYLTYPE_IS_DECLARED 1
 %}
 %%
 [a-z]+      {

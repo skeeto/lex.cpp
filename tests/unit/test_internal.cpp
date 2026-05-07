@@ -353,7 +353,7 @@ void test_header_reentrant() {
     lexcpp::CodegenInput in;
     in.file = &*file; in.nfa = &nfa; in.dfa = &dfa;
     auto h = lexcpp::emit_h(in);
-    CHECK(h.find("typedef struct yyguts_t *yyscan_t;") != std::string::npos);
+    CHECK(h.find("typedef void *yyscan_t;") != std::string::npos);
     CHECK(h.find("yylex_init(yyscan_t") != std::string::npos);
     CHECK(h.find("yyget_text(yyscan_t)") != std::string::npos);
     CHECK(h.find("extern char *yytext") == std::string::npos);

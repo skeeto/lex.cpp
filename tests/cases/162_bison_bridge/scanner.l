@@ -1,6 +1,7 @@
 %option reentrant bison-bridge noyywrap
 %{
 typedef union { int n; int len; } YYSTYPE;
+#define YYSTYPE_IS_DECLARED 1
 %}
 %%
 [0-9]+      { yylval->n   = atoi(yytext); return 1; }

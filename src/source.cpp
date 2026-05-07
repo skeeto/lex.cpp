@@ -276,6 +276,9 @@ struct Parser {
         else if (key == "extra-type")             out.options.extra_type = val;
         else if (key == "array")                  out.options.array = true;
         else if (key == "pointer")                out.options.array = false;
+        else if (key == "noyyalloc")              out.options.noyyalloc = true;
+        else if (key == "noyyrealloc")            out.options.noyyrealloc = true;
+        else if (key == "noyyfree")               out.options.noyyfree = true;
         else if (is_in(key, {"c++", "lex-compat", "posix-compat", "header"})) {
             diag.error(loc(), "unsupported %option: " + key);
         }
@@ -295,8 +298,8 @@ struct Parser {
             "always-interactive", "never-interactive",
             "fast", "full", "main", "nomain",
             "yymore", "noyymore", "input", "noinput", "unput", "nounput",
-            "yyalloc", "noyyalloc", "yyfree", "noyyfree",
-            "yyrealloc", "noyyrealloc", "yy_scan_buffer", "yy_scan_bytes",
+            "yyalloc", "yyfree", "yyrealloc",
+            "yy_scan_buffer", "yy_scan_bytes",
             "yy_scan_string", "outfile", "header-file", "yyclass",
             "tables-file", "tables-verify", "verbose", "noverbose",
             "perf-report", "noperf-report", "backup", "nobackup",
@@ -422,9 +425,13 @@ struct Parser {
                     if (peek() == '>') get();
                     if (!cur.empty()) blk.conds.push_back(std::move(cur));
                 }
-                // After the `>`, look for `{` then optional whitespace + newline.
+                // After the `>`, look for `{` (flex allows it on the next
+                // line with arbitrary intervening whitespace) followed by
+                // EOL. If we don't find that exact form it's a regular
+                // rule whose pattern starts with `{`; rewind.
                 std::size_t after_gt = pos;
-                while (!at_end() && (peek() == ' ' || peek() == '\t')) get();
+                while (!at_end() &&
+                       (peek() == ' ' || peek() == '\t' || peek() == '\n')) get();
                 if (peek() == '{') {
                     std::size_t save_brace = pos;
                     get();
