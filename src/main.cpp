@@ -34,6 +34,7 @@ constexpr std::string_view kUsage =
     "      -Cem, --compress      ECs + meta-ECs + comb (default)\n"
     "      --header-file[=PATH]  also write a companion .h\n"
     "      --tables-file=PATH    also write a binary table dump\n"
+    "  -S, --skeleton=PATH       use PATH as runtime template instead of embedded\n"
     "  -h, --help                show this help and exit\n"
     "  -V, --version             show version and exit\n"
     "\n"
@@ -52,6 +53,7 @@ struct Args {
     bool noline = false;
     std::string header_path;     // empty == no header file
     std::string tables_path;     // empty == no .tbl emission
+    std::string skeleton_path;   // empty == use embedded runtime
     lexcpp::CompressMode compress = lexcpp::CompressMode::Compress;
 };
 
@@ -87,6 +89,11 @@ int parse_args(int argc, const std::string_view* argv, Args& out,
             out.compress = lexcpp::CompressMode::Compress;
         } else if (starts_with(a, "--tables-file=")) {
             out.tables_path = std::string(a.substr(14));
+        } else if (a == "-S" || a == "--skeleton") {
+            if (++i >= argc) { diag.error({}, "-S requires an argument"); return 2; }
+            out.skeleton_path = std::string(argv[i]);
+        } else if (starts_with(a, "--skeleton=")) {
+            out.skeleton_path = std::string(a.substr(11));
         } else if (starts_with(a, "--header-file=")) {
             out.header_path = std::string(a.substr(14));
         } else if (a == "--header-file") {
@@ -279,6 +286,16 @@ int core_main(int argc, const std::string_view* argv) {
     bool use_meta = args.compress == lexcpp::CompressMode::Compress;
     lexcpp::DFA dfa = lexcpp::build_dfa(nfa, use_ec, use_meta);
 
+    std::string skeleton_buf;
+    if (!args.skeleton_path.empty()) {
+        auto in = lexcpp::platform::open_read(args.skeleton_path);
+        if (!in.ok()) {
+            diag.error({}, "cannot open skeleton: " + args.skeleton_path);
+            return 1;
+        }
+        skeleton_buf = lexcpp::platform::slurp(in);
+    }
+
     lexcpp::CodegenInput cg;
     cg.file = &file;
     cg.nfa  = &nfa;
@@ -287,6 +304,7 @@ int core_main(int argc, const std::string_view* argv) {
     cg.emit_line_directives = !args.noline;
     cg.compress = args.compress;
     cg.emit_tables_loader = !args.tables_path.empty();
+    if (!args.skeleton_path.empty()) cg.runtime_override = skeleton_buf;
     auto out = lexcpp::emit_c(cg);
 
     if (args.to_stdout) {

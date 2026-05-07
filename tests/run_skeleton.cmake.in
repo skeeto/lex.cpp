@@ -1,0 +1,32 @@
+# Driver for the -S/--skeleton override test:
+# 1. Copy the embedded runtime to a working directory and append a
+#    unique marker comment.
+# 2. Run lex -S <copy> -o out.c <scanner.l>.
+# 3. Grep the generated out.c for the marker.
+
+file(REMOVE_RECURSE ${WORK_DIR})
+file(MAKE_DIRECTORY ${WORK_DIR})
+
+set(SKEL  ${WORK_DIR}/skel.c.in)
+set(GEN_C ${WORK_DIR}/scanner.c)
+
+file(READ ${RUNTIME_IN} _runtime)
+set(MARKER "/* lex.cpp custom-skeleton-marker 0xCAFE */")
+file(WRITE ${SKEL} "${MARKER}\n${_runtime}\n")
+
+execute_process(
+    COMMAND ${LEX_EXE} -S ${SKEL} -o ${GEN_C} ${SCAN_L}
+    RESULT_VARIABLE rv
+    OUTPUT_VARIABLE out
+    ERROR_VARIABLE  err)
+if(NOT rv EQUAL 0)
+    message(FATAL_ERROR "lex generation failed (rc=${rv})\nstderr:\n${err}")
+endif()
+
+file(READ ${GEN_C} _generated)
+string(FIND "${_generated}" "${MARKER}" _pos)
+if(_pos EQUAL -1)
+    message(FATAL_ERROR
+        "custom-skeleton marker not found in generated scanner.\n"
+        "expected substring: ${MARKER}")
+endif()

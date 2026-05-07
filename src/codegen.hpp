@@ -5,6 +5,7 @@
 #include "source.hpp"
 
 #include <string>
+#include <string_view>
 
 namespace lexcpp {
 
@@ -24,6 +25,9 @@ struct CodegenInput {
     // When set, tables are emitted non-const and yytables_fload is
     // provided so the user can swap them out at runtime.
     bool           emit_tables_loader = false;
+    // When non-empty, replaces the embedded runtime template. Used by
+    // -S / --skeleton.
+    std::string_view runtime_override;
 };
 
 [[nodiscard]] std::string emit_c(const CodegenInput& in);

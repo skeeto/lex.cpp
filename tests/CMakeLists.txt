@@ -43,6 +43,22 @@ add_test(
         -DINPUT_TXT=${CMAKE_CURRENT_SOURCE_DIR}/tables_load/input.txt
         -P ${CMAKE_CURRENT_BINARY_DIR}/run_tables_load.cmake)
 
+# Custom test: -S/--skeleton override.
+# Generates a scanner using a copy of the embedded runtime with an
+# extra marker comment, then verifies the marker survives codegen.
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/run_skeleton.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/run_skeleton.cmake
+    @ONLY)
+add_test(
+    NAME skeleton_override
+    COMMAND ${CMAKE_COMMAND}
+        -DLEX_EXE=$<TARGET_FILE:lex>
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/work/skeleton
+        -DSCAN_L=${CMAKE_CURRENT_SOURCE_DIR}/skeleton/scanner.l
+        -DRUNTIME_IN=${CMAKE_SOURCE_DIR}/runtime/runtime.c.in
+        -P ${CMAKE_CURRENT_BINARY_DIR}/run_skeleton.cmake)
+
 # Auto-discover test cases.
 file(GLOB CASE_DIRS LIST_DIRECTORIES true RELATIVE
      ${CMAKE_CURRENT_SOURCE_DIR}/cases

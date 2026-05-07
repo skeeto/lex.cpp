@@ -772,7 +772,11 @@ std::string emit_c(const CodegenInput& in) {
 
     // Embed runtime helpers.
     out += "/* runtime helpers (from runtime/runtime.c.in) */\n";
-    out += std::string(kRuntimeTemplate);
+    if (!in.runtime_override.empty()) {
+        out.append(in.runtime_override);
+    } else {
+        out += std::string(kRuntimeTemplate);
+    }
     if (out.back() != '\n') out += "\n";
     out += "\n";
 

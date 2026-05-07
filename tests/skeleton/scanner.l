@@ -1,0 +1,4 @@
+%option noyywrap
+%%
+.|\n  /* skip */
+%%
