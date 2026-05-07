@@ -18,6 +18,11 @@
 #include <unordered_map>
 #include <vector>
 
+#ifdef _WIN32
+#  include <io.h>
+#  include <fcntl.h>
+#endif
+
 namespace {
 
 constexpr std::string_view kVersion = "lex.cpp 0.1.0";
@@ -154,6 +159,12 @@ void normalise_source(std::string& s) {
 } // namespace
 
 int main(int argc, char** argv) {
+#ifdef _WIN32
+    // Generated scanners and bytewise input must flow through stdio
+    // unmangled. Opt out of Windows' text-mode CRLF translation.
+    _setmode(_fileno(stdin),  _O_BINARY);
+    _setmode(_fileno(stdout), _O_BINARY);
+#endif
     lexcpp::Diagnostics diag;
     Args args;
     if (int rc = parse_args(argc, argv, args, diag); rc != 0) return rc;

@@ -137,6 +137,42 @@ jobs:
       - run: cmake --build build -j
       - run: ctest --test-dir build --output-on-failure
 
+  mingw-wine:
+    name: MinGW cross-build + wine smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install mingw + wine
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mingw-w64 wine64 wine flex
+      - name: Cross-build lex.exe
+        run: |
+          cmake -S . -B build-mingw \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/MinGW-x86_64.cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DLEXCPP_BUILD_TESTS=OFF
+          cmake --build build-mingw -j
+      - name: Native build for parity reference
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DLEXCPP_BUILD_TESTS=OFF
+          cmake --build build -j
+      - name: Smoke (wine vs native must match byte-for-byte)
+        run: |
+          fail=0
+          for d in tests/cases/*/; do
+            case=$(basename $d)
+            WINEDEBUG=-all wine build-mingw/bin/lex.exe -t $d/scanner.l 2>/dev/null > /tmp/w.c
+            build/bin/lex -t $d/scanner.l 2>/dev/null > /tmp/n.c
+            if ! cmp -s /tmp/w.c /tmp/n.c; then
+              fail=$((fail+1))
+              [ $fail -le 3 ] && diff /tmp/w.c /tmp/n.c | head -20
+              echo "DIFFER: $case"
+            fi
+          done
+          echo "Failures: $fail"
+          test $fail -eq 0
+
   windows:
     name: Windows MSVC
     runs-on: windows-latest

@@ -175,6 +175,24 @@ fuzz/
 .github/workflows/ci.yml
 ```
 
+## Cross-compiling for Windows
+
+A MinGW toolchain file is shipped:
+
+```sh
+cmake -S . -B build-mingw \
+    -DCMAKE_TOOLCHAIN_FILE=cmake/MinGW-x86_64.cmake \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DLEXCPP_BUILD_TESTS=OFF
+cmake --build build-mingw -j
+wine build-mingw/bin/lex.exe --version       # if wine installed
+```
+
+The toolchain statically links `libstdc++` and `libgcc` so the resulting
+`lex.exe` and `liblex.a` ship with no DLL dependencies. CI exercises this
+path on Linux runners (`mingw-wine` job) and asserts output parity with
+the native `lex` binary across every test case.
+
 ## CI
 
 GitHub Actions runs on every push:
