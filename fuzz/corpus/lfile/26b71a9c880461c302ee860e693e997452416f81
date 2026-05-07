@@ -1,0 +1,9 @@
+%option noyywrap
+%%
+"if"        |
+"then"      |
+"else"     OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO |
+"whi ", yytext);
+.|\n        ECHO;
+%%
+int main(void){ yylex(); return 5; }

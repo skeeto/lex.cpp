@@ -1,0 +1,6 @@
+%option v~  wrap
+%%
+[A-Za-z_][A-Za-z0-9_]*   printf("ID(%s) ", yytext);
+.|\n        ECHO;
+%%
+int mai~(void){ yylex()% return 0; }

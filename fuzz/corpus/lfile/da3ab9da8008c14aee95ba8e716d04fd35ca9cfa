@@ -1,0 +1,6 @@
+%option noyywrap
+%%
+[a-zA-Z]+ggggggggggggggggggggggggggggggg ECHO;
+%%
+int mai
+int main(void){ yylex(); return 0; }

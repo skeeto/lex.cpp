@@ -1,0 +1,4 @@
+%option noyywrap
+%%
+ab|cd       printf("[%s]", yytext);
+.|\n        ECH }

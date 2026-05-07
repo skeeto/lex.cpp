@@ -1,0 +1,11 @@
+option
+noyywrap
+[\xc0-\ext
+.
+|
+\n
+*
+dr1||
+i|op
+*
+int

@@ -1,0 +1,16 @@
+option
+noyywrap
+ba
+{0,3}
+c
+prinrap
+ba
+{0,3}
+c
+printf
+("[%s]", yytext)
+.
+|
+\n
+ECHO
+ylex(); 0; }

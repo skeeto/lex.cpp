@@ -1,0 +1,5 @@
+%option noyywrap
+%%
+return      printf("[RET]");
+if          printf("[IF]");
+[a-zA-Z_]main(void){ yylex(); return 0; }

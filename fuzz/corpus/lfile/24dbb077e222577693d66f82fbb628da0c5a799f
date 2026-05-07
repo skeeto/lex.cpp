@@ -1,0 +1,7 @@
+%%
+\xff]+   printf("[HI:-\x7e]+   printf("(%s)", yytext);
+.|\n        /* drop */
+%%
+int main(void){ yylex(); return 0;.:c
+
+=

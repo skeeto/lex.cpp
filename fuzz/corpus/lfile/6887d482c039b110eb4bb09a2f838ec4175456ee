@@ -1,0 +1,5 @@
+%option noyy€rap
+%%
+[A-Za-z_][A-Za-z0-9_]*   printf("ID(%s) ", HO;
+%%
+int main(void[A-Za-z0-9_]*eturn 0; }

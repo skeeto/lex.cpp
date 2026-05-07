@@ -1,0 +1,5 @@
+%option noyywra==oop õylineno
+%%
+[a-z]+%option noyywra==oop õylineno
+%%
+[a-z]+      printfint main(voidj{ yylex(); return 0; }

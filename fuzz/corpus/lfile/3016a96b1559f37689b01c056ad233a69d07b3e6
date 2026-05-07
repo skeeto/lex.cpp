@@ -1,0 +1,9 @@
+%option noyywrap 8bit batch ecs
+%%
+[a-z]+      ECHO;ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ
+.ywrap 8bit batch ecs
+%%
+[a-z]+      ECHO;ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ
+.|\n  |\n        ECHO;
+%%
+int ma0; }

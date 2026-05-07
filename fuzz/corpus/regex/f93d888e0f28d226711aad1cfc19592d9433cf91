@@ -1,0 +1,26 @@
+option
+noyywrap
+\101
+printf
+("<tf("
+[QUOTE]
+"          printf("
+[BACKSLASH-QUOTE]
+.
+|
+\n
+ECA>")
+.
+|
+\n
+ECHO
+intrintf
+("<A>")
+.
+|
+\n
+ #yylex(); return 0
+.
+|
+\n
+ #yylex(); return 0; }

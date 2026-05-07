@@ -1,0 +1,5 @@
+%option __r__r_noyywrap
+%%
+^(fo.|\n        ECHO;
+
+%%in! main(void){ yylex(); return 0; }

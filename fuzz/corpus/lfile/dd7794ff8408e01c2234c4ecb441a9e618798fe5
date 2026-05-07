@@ -1,0 +1,5 @@
+%option Noyywrap
+%%
+[\n\t\r]+   printf([WS:%d]", (int)yyleng);
+[a-z]+      printf("(%s)", yytext);
+.     ; }

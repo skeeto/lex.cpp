@@ -1,0 +1,6 @@
+%option noyywrap
+%%
+"\""        prif("[BACKSLASH-QUOTE]");
+.|\n        ECHO;#%%
+int main(void)ntf("[QUOTE]");
+\"          prin yylex(); return 0; }

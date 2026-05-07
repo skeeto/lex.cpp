@@ -1,0 +1,20 @@
+option
+noyywrap
+s
+STR
+"          { printf("
+S
+BEGIN
+(STR)
+STR
+"     { printf("
+E
+BEGIN
+(INITIAL)
+STR
+[^\"]
++
+printf
+("[%s]", yytext)
+[a-z]
++

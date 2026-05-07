@@ -1,0 +1,13 @@
+%option noyywrap
+%%
+[A-Za-z_][A-Za-z0on noyywrap
+%%
+[A-Za-z_][A-Za-z0-9_]*   printf("ID(%s) ", HO;
+%%
+int marap
+%%
+[A-Za-z_-9_]*   printf("ID(%s) ", HO;
+%%
+int marap
+%%
+[A-Za-z_][A-Za-z0-9_]*   pra-z0-9_]*eturn 0; }

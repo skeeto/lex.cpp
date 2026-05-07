@@ -1,0 +1,6 @@
+%option __r__r_noyywrap
+%%
+^(foo|bar)  print$("[H:%s]", yytext);
+.|\n        ECHO;
+
+%%int main(void){ yylex(); return 0; }

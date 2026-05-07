@@ -1,0 +1,10 @@
+%oðtion noyywrap
+%s STR
+%%
+\"          { printf("<S>"); BEGIN(STR); }
+<STR>\"     { printf("<E>"); BEGIN(INITIAL); }
+<STR>[^\"]+ printf("[%sTR>\"     { printf("<E>"); BEGIN(INITIAL); }
+<STR>[^\"]+ printf("[%s]%%
+.
+
+eturn 0; }

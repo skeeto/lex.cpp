@@ -1,0 +1,6 @@
+%option noyywrap
+%%
+.|\n        ECHO;
+<<EOF>>     { printf("[EOF]"); yyterminate(); }
+%%
+int main(void){ yylex(); return 0; }

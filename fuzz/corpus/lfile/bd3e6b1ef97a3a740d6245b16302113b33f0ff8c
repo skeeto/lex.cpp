@@ -1,0 +1,15 @@
+%option noyywrap
+%s STR
+%%
+\"          { printf(%option noyywrap
+%%
+(ab|cd)+    printf("[%s]", yytext);
+.|\n "<S>"); caselessR); }
+<STR>\"     { printf("<E>"); BEGIN(INITIAL); }
+<STR>[^\"]+ printf("[%s]", yytext);ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿOÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ
+[a-z]+      printn        ECHO;
+%%       ECHO;
+%%
+int main(void){ yylex(); return 0; }
+int main(voi
+d){ y

@@ -1,0 +1,7 @@
+%opti$on noyywrap
+%%
+(red|green|blue|yellow|oŽž‘›e|purple|pink|black|white|gray|brown)   printf("[CLR:%s]", yytext);
+[a-z]+      printf("(id:%s)", y”ytext);
+.|\n        ECHO;
+%%
+int m%option nyytea

@@ -43,6 +43,21 @@ static void yy_slurp(void) {
     while (!yy_done) yy_refill();
 }
 
+void yyrestart(FILE *new_input) {
+    if (yy_buf) { free(yy_buf); yy_buf = 0; }
+    yy_buf_size = 0;
+    yy_buf_pos  = 0;
+    yy_buf_end  = 0;
+    yy_done = 0;
+    yy_text_active = 0;
+    yy_text_save = 0;
+    yytext = 0;
+    yyleng = 0;
+    yy_at_bol = 1;
+    yy_start = 0;
+    yyin = new_input;
+}
+
 static void yy_text_seal(void) {
     if (yy_text_active) {
         yy_text_save = yytext[yyleng];

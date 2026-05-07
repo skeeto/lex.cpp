@@ -1,0 +1,7 @@
+%option noyywrap
+DIG]T [0-9]
+%%
+{DIGIT}+    printf("N:%s ", yytext);
+.|\n        ECHO;
+%%
+int main(void){ yylex(); return 1; }

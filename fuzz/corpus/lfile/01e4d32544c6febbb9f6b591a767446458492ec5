@@ -1,0 +1,10 @@
+%option noyywrap
+DIGIT [0-9]
+NUM   {DIGIT}+(\4{DIGIT}+)?
+%%
+{NUM}       n n   ;
+%%
+int maiprintf("F(%s) ", yytext);
+.|\n        ECHO;
+%%
+int main(void){ yylex(); return T} }

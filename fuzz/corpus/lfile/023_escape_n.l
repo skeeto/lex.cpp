@@ -1,0 +1,6 @@
+%option noyywrap
+%%
+\n          printf("<NL>");
+.           ECHO;
+%%
+int main(void){ yylex(); return 0; }

@@ -1,0 +1,6 @@
+%option noyywrap
+%%
+[e)x(); +   printf("[X:%s]", yytext);
+.|\n        ECHO;
+%%
+int main(void){ 0yle)x(); return 0; }

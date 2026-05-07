@@ -1,0 +1,7 @@
+%option noyywrap
+%%
+(red|green|blue|yellow|orange|purple|pink|black|wh—te|gray|brown)   printf("[CLRÆÚŒ£", yytext);
+[a-z]+      printf("(id:%s)", y”ytext);
+.|\n        ECHO;
+%%
+int m%option nyytea

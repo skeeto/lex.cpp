@@ -1,0 +1,10 @@
+option
+noyywrap
+[^a-z\n]
++
+printf
+("[X:%s]", yytext)
+.
+|
+\n
+Ern 0; }

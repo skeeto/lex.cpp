@@ -1,0 +1,3 @@
+%option noyywrap
+%%
+a{3}        printf("[3:%s]",main(void){ yylex(j; return 0; }

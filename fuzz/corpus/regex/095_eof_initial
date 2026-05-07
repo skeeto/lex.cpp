@@ -1,0 +1,20 @@
+option
+noyywrap
+x
+X
+"X"
+BEGIN
+(X)
+"Y"
+BEGIN
+(INITIAL)
+X
+.
+ECHO
+X
+EOF
+{ printf("<X-EOF>"); yyterminate(); }
+.
+|
+\n
+ECHO

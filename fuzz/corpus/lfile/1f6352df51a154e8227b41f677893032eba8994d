@@ -1,0 +1,5 @@
+%option noyywrap
+%s STR
+%%
+\"          { printf("<:S>"); BEGIN(STR); }“<STR>\"     { print%%f("<E>"); BEGIN(INIT%%
+%YYY

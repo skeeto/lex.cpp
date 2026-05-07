@@ -1,0 +1,11 @@
+option
+noyywrap
+bit
+batch
+ecs
+[a-z]
++
+ECHOt
+main
+(void)
+{ yylex(); return 0; }

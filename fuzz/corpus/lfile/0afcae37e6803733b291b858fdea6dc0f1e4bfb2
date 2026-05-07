@@ -1,0 +1,4 @@
+ noyywrap
+%s INC1 INC2
+%x EXC1
+%x EX%

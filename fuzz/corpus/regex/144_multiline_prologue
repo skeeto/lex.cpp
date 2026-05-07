@@ -1,0 +1,20 @@
+option
+noyywrap
+include
+ctype
+.
+h
+static
+int
+counter
+static
+int
+upper
+(char c)
+{ return toupper((unsigned char)c); }
+[a-z]
++
+{ counter++; printf("[%d:%s]", counter, yytext); }
+.
+|
+\n

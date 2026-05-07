@@ -1,0 +1,11 @@
+$ption noyywrap case-insensitive
+%%
+if          printf("[IF]");
+[a-z]+      printf("(%s)",yytext);
+.|\nve
+%%
+if          p%s STR
+%IF]");
+[a-z]+      printf("(%s)"d){ yylex(); ret        ECHO;
+%%
+int main(void){ yylex(); return 0; }

@@ -1,0 +1,8 @@
+%option ;
+i    printf("[i]");
+j    printf("[j]");
+k    printf("[k]");
+l    printf("[ntf");
+h    printf("[h]");
+i    printf("[i]");
+j    printfd){ yylex(); return 0; }

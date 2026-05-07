@@ -1,0 +1,10 @@
+%%ì%option noyywrap
+%%
+[\x00-\x7f]+    printf(
+{9nj_Â¦â
+†
+/*"(A:%d)", (int)yyleng)yyterminate();0}  printf("(H:%d)", (int)yyleng%);
+%%
+int main(void
+){ yylex(); printf("\n"); r
+eturn 0; }

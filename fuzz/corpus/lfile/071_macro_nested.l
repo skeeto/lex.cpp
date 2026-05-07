@@ -1,0 +1,8 @@
+%option noyywrap
+DIGIT [0-9]
+NUM   {DIGIT}+(\.{DIGIT}+)?
+%%
+{NUM}       printf("F(%s) ", yytext);
+.|\n        ECHO;
+%%
+int main(void){ yylex(); return 0; }

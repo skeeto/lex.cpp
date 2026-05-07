@@ -1,0 +1,10 @@
+%option noyywrap
+%%
+"if"        |
+"then"      |
+"else"      |
+"while"     printf("KW(%s) ", yytext);
+[a-z]+      printf("id(%s) ", yytext);
+.|\n        ECHO;
+%%
+int main(void){ yylex(); return 0; }

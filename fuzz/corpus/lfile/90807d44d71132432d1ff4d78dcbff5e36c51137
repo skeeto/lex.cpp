@@ -1,0 +1,4 @@
+%option noyywrap
+%%
+a+|b+       printf("[%s]", yytext);
+.|\n  

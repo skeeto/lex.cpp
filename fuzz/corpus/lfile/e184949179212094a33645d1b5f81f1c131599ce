@@ -1,0 +1,5 @@
+%option noyywrap
+%x A   BEGIN(A);      printf("(%s)", yytext);
+.|\n            ECHO;
+%%
+int yylex(); returlex(); return 0; }

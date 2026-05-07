@@ -1,0 +1,15 @@
+%option noyywrap
+%%
+[0-9]+      {
+  ywrap
+%%
+[0-9]+      {
+                i*t v = atoi(y
+
+
+
+t);
+                if (v > 10) { printf("BIG(%d)", v); }
+                else        { printf("small(%d)", v); }
+            }
+.|\n       ECHOx(); return 0; }

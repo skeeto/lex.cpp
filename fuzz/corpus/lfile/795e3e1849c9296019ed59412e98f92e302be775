@@ -1,0 +1,11 @@
+%option noyywrap
+%{
+#include <stdio.h>
+çãûãfñú‡int n = 0;
+%}
+%%
+[a-z]+      {%
+int main(void){ yylex(); rpintf("\ntotal=%d\n", n); %}
+%%
+[a-z]+      {%
+int main(void){ yylex(); rpintf("\ntotal=%d\n", n); return 0; }return 0; }

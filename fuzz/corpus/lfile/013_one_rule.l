@@ -1,0 +1,6 @@
+%option noyywrap
+%%
+.           printf("X");
+\n          printf("\n");
+%%
+int main(void){ yylex(); return 0; }

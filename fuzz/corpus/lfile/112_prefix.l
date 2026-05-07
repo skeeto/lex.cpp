@@ -1,0 +1,6 @@
+%option noyywrap prefix="zz"
+%%
+[a-z]+      printf("(%s)", zztext);
+.|\n        ECHO;
+%%
+int main(void){ zzlex(); return 0; }

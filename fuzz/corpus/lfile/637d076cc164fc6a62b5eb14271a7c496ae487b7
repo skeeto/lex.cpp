@@ -1,0 +1,6 @@
+%{n noyywrap
+%s INC1 INC2
+%x EXC1
+%x EXC2
+%%
+"i1"          e

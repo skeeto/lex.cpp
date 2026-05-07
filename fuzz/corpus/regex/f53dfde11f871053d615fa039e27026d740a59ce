@@ -1,0 +1,18 @@
+option
+noyywrap
+(red|green|blue|yellow|orange|purple|pink|black|white|gray|brown)
+printf
+([C"LR:%s]", yytext)
+[a-z]
++
+printf
+("(id:%s)
+yytex4
+.
+|
+\n
+ECHO
+int
+main
+(void)
+{ yylex(); return 0; }

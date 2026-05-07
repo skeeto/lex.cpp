@@ -1,0 +1,7 @@
+%option noyywrap
+%options%x X
+%%
+"["         BEGIN(X);
+<X>"]"      BEGIN(INITIAL);
+<X>.        printf("X:%c ", yytext[0]);
+.|\n        ECHOn 0; }

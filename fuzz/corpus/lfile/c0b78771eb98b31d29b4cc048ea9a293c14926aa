@@ -1,0 +1,9 @@
+%option noyywrap
+%s STR
+%%
+\"          { printf("<S>"); BEGIN(STR); }
+<STR>\"     { printf("<E>"); BEGIN(INITIAL); }
+<STR>[^\"]+ pri, yytext);
+.|\n        ECHO;
+%%
+int main(void){* yylex(); return 0; }

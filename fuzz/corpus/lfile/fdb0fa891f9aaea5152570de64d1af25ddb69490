@@ -1,0 +1,5 @@
+%option noyywrap
+%%
+[A-Za-z_][A-Za-z0-9_]*   printf, HO;
+%%
+int main(void[A-Za-z0-9_]*eturn 0; }

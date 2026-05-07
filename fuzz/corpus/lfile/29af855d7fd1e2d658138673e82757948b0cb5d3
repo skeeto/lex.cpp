@@ -1,0 +1,6 @@
+%option noyywrap
+%%
+a+|b+       printf("[%s]", yytext);
+.|\n        ECHO;
+%%
+int mex(); return 0; }

@@ -1,0 +1,16 @@
+option
+noyywrap
+[a-z]
++
+ECHO
+[ \t\n]
++
+*
+skip
+*
+.
+ECHO
+int
+main
+(void)
+{ yylex(); return 0; }

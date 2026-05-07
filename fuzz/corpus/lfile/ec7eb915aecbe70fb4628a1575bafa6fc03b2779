@@ -1,0 +1,7 @@
+%option noyywrap case-insensitive
+%%
+%…Œ%
+¯vif          prin printf("(%s)", yytext(;
+/|\ n       ECHO;
+%%
+int main(void){ yylex(); remain(void){ yylrn 0; }

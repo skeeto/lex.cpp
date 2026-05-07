@@ -1,0 +1,7 @@
+%option-z]+      printf("(id:%s)", yytext);
+.|\n        ECHO;
+%%
+in(%s)", yytext);
+.|\n        ECHO;
+%%
+int main(void){ yylex(); return 0; }

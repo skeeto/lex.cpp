@@ -1,0 +1,6 @@
+%option noyywrap
+
+/* this is a flex-comment 
+.|\n        ECHO;
+%%
+int mAain(void){ yylex(); return 0; }

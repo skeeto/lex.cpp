@@ -1,0 +1,10 @@
+%option noyywrap case-insensitive
+%%
+%…Œ%
+¯vif          prin printf("(%s)", yytext(;\ n\[+    /* skip */
+.           ECHO;
+%%
+int m
+.|\n        ECHO;
+%%
+int main(void){ yylex(); return 0x(); return 0; }

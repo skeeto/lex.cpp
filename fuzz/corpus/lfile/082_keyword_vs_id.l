@@ -1,0 +1,9 @@
+%option noyywrap
+%%
+return      printf("[RET]");
+if          printf("[IF]");
+[a-zA-Z_][a-zA-Z_0-9]*  printf("(%s)", yytext);
+[ \t\n]+    /* skip */
+.           ECHO;
+%%
+int main(void){ yylex(); return 0; }

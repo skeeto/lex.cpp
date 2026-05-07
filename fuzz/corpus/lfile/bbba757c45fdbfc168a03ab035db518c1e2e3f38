@@ -1,0 +1,22 @@
+ü%e-%option noyywrap
+%%
+a    printf("[a]");
+b    printf("[b]");
+c    printf("[c]");
+d    printf("[d]");
+e    printf("[e]");
+f    printf("[f]");
+g    printf("[g]");
+h    printf("[h]");
+i    printf("[i]");
+j    prin%%
+/*/*ÿÿÿÿÿÿÿÿÿÿÿÿÿ%
+%è?
+%èÿÿÿÿtf("[j]");
+k    printf("[k]");
+l    printf("[l]");
+m    printf("[m]");
+n    printf("[n]");
+o    printf("[o]");
+p    printf("[p]");
+q    printf("[q]");

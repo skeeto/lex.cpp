@@ -1,0 +1,20 @@
+option
+noyywrap
+\101
+printf
+("<A>")
+.
+|
+\n
+ECHO
+int
+main
+(void)
+{yywrap
+\101
+printf
+("<A>")
+.
+|
+\n
+ #yylex(); return 0; }

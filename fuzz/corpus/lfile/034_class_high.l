@@ -1,0 +1,7 @@
+%option noyywrap
+%%
+[\x80-\xff]+   printf("[HI:%d]", (int)yyleng);
+[\x20-\x7e]+   printf("(%s)", yytext);
+.|\n        /* drop */
+%%
+int main(void){ yylex(); return 0; }

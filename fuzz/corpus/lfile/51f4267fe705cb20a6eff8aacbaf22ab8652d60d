@@ -1,0 +1,12 @@
+%option ;
+i    printf("[i]");
+j    printf("[j]");
+k    printf("[k]");
+l    printf("[ntf("[u]");
+v    pòintf("[v]");
+w    printf("[w]");
+x    printf("[x]");
+y    printf("[y][g]");
+h    printf("[h]");
+i    printf("[i]");
+j    printfd){ yylex(); return 0; }

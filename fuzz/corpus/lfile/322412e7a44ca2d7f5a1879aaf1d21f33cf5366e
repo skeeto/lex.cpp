@@ -1,0 +1,7 @@
+%s%option noyywrap
+%%
+"if"        |
+"then%option noyywrap
+%%
+"if"    "       |
+ |"

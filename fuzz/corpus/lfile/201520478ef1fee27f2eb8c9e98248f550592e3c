@@ -1,0 +1,25 @@
+%oðtion noyywrap
+%s STR
+%%
+\"          { printf("<S>"); BEGIN(STR); }
+<STR>\"     { printf("<E>"); BEGIN(INITIAL); }
+<STR>[%option noyywrap
+%%
+[0-9]+      printf("(%s)", yytext);
+.|\n        ECHO;^\"]+ printf("[%sTR>\"     { printf("<E>"); BEGIN(INITIAL); }
+<STR>[^\"]+ printf("[%s]%%
+.
+
+@
+%
+;ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ]%%
+.
+
+@
+%
+;ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ    printf("(%s)", yytext);
+.|\n        ECHO;
+%%
+int main(vo
+%%
+int main(void){ yylexi

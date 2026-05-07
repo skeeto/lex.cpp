@@ -1,0 +1,3 @@
+%option noyywr { printf("[EOF]"); yyterminate();0}
+%%
+int main(void){ yylex; return 0; }

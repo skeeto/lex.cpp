@@ -1,0 +1,7 @@
+%option noyywrap
+%%
+\\          printf("[BS]");
+\t          printf("[TAB]");
+.|\n        ECHO;
+%%
+int main(void){ yylex(); return 0; }

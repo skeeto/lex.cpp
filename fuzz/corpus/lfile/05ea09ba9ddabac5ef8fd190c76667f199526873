@@ -1,0 +1,3 @@
+%option noyywrap prefix="zz"*%%
+[a-z‰]+      printf("(%s)", zztext);
+.|\n        E main(void){ zzlex(); return 0; }

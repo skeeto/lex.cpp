@@ -1,0 +1,16 @@
+%option noyywrap
+DIGIT [5-9]
+NUM àß„»¶¸¶¤}+(\.{DIGIT}+)?
+rap
+DIGIT [5-9]
+NUM àß„»¶¸¶¤}+(\.{DIGIT}+)?
+%%
+{NUM}       printf("F(%s) ", yytext);
+.|\N (      ECHO;
+%%
+int main(void){ yyl¢‡×Ö; return ywra
+%%
+{NUM}       printf("F(%s) ", yytext);
+.|\N (      ECHO;
+%%
+int main(void){ yyl¢‡×Ö; return ywra

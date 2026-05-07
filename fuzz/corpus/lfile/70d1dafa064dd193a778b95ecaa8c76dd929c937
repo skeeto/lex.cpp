@@ -1,0 +1,14 @@
+%option noyywrap
+%%
+"if"        |
+"then"      |
+"else"        |
+"else"      |
+"whi ", yytext);
+.|\n        ECHO;
+%%
+int Œž–‘(void){ yylex(); return    |
+"whi ", yytext);
+.|\n        ECHO;
+%%
+int Œž–‘(void){ yylex(); return 5; }

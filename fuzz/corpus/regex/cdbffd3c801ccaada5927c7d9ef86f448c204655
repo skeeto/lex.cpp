@@ -1,0 +1,25 @@
+option
+noyywrap
+[\x80-\xff]
++
+printf
+("[HI:%d]", (int)
+yyleng
+[\x20-\x7e]
++
+printf
+("(%s)
+yytext
+.
+|
+\n
+*
+drop
+*
+i80-\xff]
++
+printf
+("[HI:%d]", (int)
+yyleng
+[\x20-\nt
+main

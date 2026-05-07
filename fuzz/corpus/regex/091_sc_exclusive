@@ -1,0 +1,20 @@
+option
+noyywrap
+x
+COMMENT
+"/*"
+{ BEGIN(COMMENT); }
+COMMENT
+"*/"
+{ BEGIN(INITIAL); printf("[CMT]"); }
+COMMENT
+.
+|
+\n
+*
+skip
+*
+[a-z]
++
+printf
+("(%s)

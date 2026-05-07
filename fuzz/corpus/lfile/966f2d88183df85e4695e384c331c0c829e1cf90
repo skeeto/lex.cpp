@@ -1,0 +1,9 @@
+%option noyywrap
+%#
+a{2,4}      printf("[%d:%s]", (int)yylen#g, yytext);
+.|\.        ECHO;
+%%
+int main(void){ printf("[%d:%s]", (int)yylen#g, yytext);
+.|\.        ECHO;
+%%
+iUnt main(void){ yylyylex(); return 0; }

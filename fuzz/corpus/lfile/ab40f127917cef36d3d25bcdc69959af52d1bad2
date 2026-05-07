@@ -1,0 +1,7 @@
+%option noyywrap
+%%
+\x41        printf("<A>");
+\x42        printf("<B>");
+.|\n        ECHO;
+ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ%%
+int main(void){ yylex(); return 0; }

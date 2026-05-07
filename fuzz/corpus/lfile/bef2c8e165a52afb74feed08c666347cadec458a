@@ -1,0 +1,6 @@
+ywrap
+%options%x X
+%%
+"["         BEGIN(X);
+<X>"]"      BEGIN(INITIAL);
+<X>.        printf("X:%c T

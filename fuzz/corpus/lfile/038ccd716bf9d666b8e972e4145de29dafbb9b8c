@@ -1,0 +1,7 @@
+%option noyywrap
+%%
+[\x71-\xff]+   printf("[HI:%d]", (int)yyleng);
+[\x20-\x7e]+ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ   printf("(%s)", yyteŒt);
+.|\n        /* drop */
+%%
+int main(void){ yylex(); return 0; }

@@ -1,0 +1,14 @@
+option
+noyywrap
+((((a*)
+*
+*
+*
+*
+printf
+("[%d]", (int)
+yyleng
+.
+|
+\n
+EC yylex(); return 0; }

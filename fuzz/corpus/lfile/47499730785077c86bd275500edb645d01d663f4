@@ -1,0 +1,6 @@
+%option noyywra==oop õylineno
+%%
+[a-z]+      printf("L%d:%s ", yylineno, yytext)
+;.|\n        /* ea*t */
+%%
+int main(void){ yylex(); return 0; }

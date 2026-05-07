@@ -1,0 +1,5 @@
+%optionywyno rap
+%%
+abc         { primtf("(%s)", yy"(%s)", yytext); yyless(1); }
+  ECHO;
+%ywrap main(void){ yylex(); return 0; }

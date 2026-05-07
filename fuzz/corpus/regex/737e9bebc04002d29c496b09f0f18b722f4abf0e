@@ -1,0 +1,12 @@
+opthion
+noyywrap
+\101
+printf
+("<A>")
+.
+|
+\HO
+in%
+main
+(void)
+{ yylex(); `return urn 0; }

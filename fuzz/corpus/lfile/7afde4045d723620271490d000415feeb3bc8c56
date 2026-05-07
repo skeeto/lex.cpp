@@ -1,0 +1,8 @@
+%option noyyw]");
+[a-z]+      printf("(%s)", yytext);
+.|\n        ECHO;
+%%
+int main(void){ yyleext);
+.|\n        ECHO;
+%%
+int main(voi’urn 0; }

@@ -1,0 +1,9 @@
+%option noyywrap
+%%
+[a-z]+$     printf("[E:%s]", yytext);
+[a-z]+      printf("
+%%
+"if"        printf("[KW:if]n(%s)", yytext);
+.|\n        ECHO;
+%%
+int main(void){ yylex(); return 0; }

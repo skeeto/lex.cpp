@@ -1,0 +1,19 @@
+%option noyywrap
+%s STR
+%%
+\"          { printf("<S>"); BEGIN(STR); }
+<STR>\"     { printf("<E>"); BEGIN(INITIAL); }
+<STR>[^\"]+ printf("[%s]%%
+.
+
+@
+%
+;ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ%
+šÿÿÿÿÿÿÿÿÿÿÿÿÿNITIAL); }
+<STR>[^\"]+ printf("[%s]%%
+.
+
+@
+%
+;ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ%
+šÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿreturn 0; }

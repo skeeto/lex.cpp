@@ -1,0 +1,15 @@
+__0__1%option noyywrap
+%%
+a    printf("[a]");
+b    printf("[b]");
+c    printf("[c]");
+d    printf("[d]");
+e    printf("[e]");
+f    printf("[f]"));
+b    printf("[b]");
+c    printf("[c]");
+d    printf("[d]");
+e    printf("[e]");
+f    printf("[f]vif          prin printf("(   printf("[m]");
+n    printf("[n]");
+o    p

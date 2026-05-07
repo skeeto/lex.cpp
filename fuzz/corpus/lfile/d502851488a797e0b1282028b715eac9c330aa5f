@@ -1,0 +1,4 @@
+%option Noyywrap
+%%
+[\n\t\r]+   ("(%s)", yytext);
+.     ; }

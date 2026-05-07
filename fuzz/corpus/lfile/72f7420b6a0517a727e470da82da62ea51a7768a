@@ -1,0 +1,6 @@
+%option noyywrap
+%%
+abc         { printf("(%s)", yytext); yyless(1); }
+.|\n        ECHO;
+%%
+int main(void

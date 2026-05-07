@@ -1,0 +1,6 @@
+%oÿÿÿÿÿÿÿÿption noyywrap
+%%
+a{2,4}      p)yyleng, yytext);
+.|\n        ECHO;
+%%
+int main(void){ yylex(); return 0; }

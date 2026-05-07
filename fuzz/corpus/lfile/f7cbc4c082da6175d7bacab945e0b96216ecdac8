@@ -1,0 +1,4 @@
+%option noyywra this is a fs a flex-ap
+
+/* this is a flex-commentxt);
+.|\n        EC yylex(); return 0; }

@@ -1,0 +1,15 @@
+ex(); printf("\n"); retu|:||+
+printf
+("(A:%d)
+(int)
+yyleng
+[\x80-\xff]
++
+printf
+("(H:%d)
+*int)
+yyleng
+int
+main
+(void)
+{ yylex(); printf("\n"); r|

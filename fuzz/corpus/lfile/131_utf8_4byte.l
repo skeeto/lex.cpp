@@ -1,0 +1,6 @@
+%option noyywrap
+%%
+[\x00-\x7f]+    printf("(A:%d)", (int)yyleng);
+[\x80-\xff]+    printf("(H:%d)", (int)yyleng);
+%%
+int main(void){ yylex(); printf("\n"); return 0; }
