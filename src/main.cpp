@@ -47,6 +47,7 @@ struct Args {
     bool yylineno = false;
     bool nodefault = false;
     bool prefix_set = false;
+    bool noline = false;
 };
 
 [[nodiscard]] bool starts_with(std::string_view s, std::string_view p) {
@@ -70,6 +71,8 @@ int parse_args(int argc, char** argv, Args& out, lexcpp::Diagnostics& diag) {
             out.yylineno = true;
         } else if (a == "-s" || a == "--nodefault") {
             out.nodefault = true;
+        } else if (a == "-L" || a == "--noline") {
+            out.noline = true;
         } else if (a == "-o") {
             if (++i >= argc) { diag.error({}, "-o requires an argument"); return 2; }
             out.output_path = argv[i];
@@ -217,6 +220,8 @@ int main(int argc, char** argv) {
 
     // Codegen.
     lexcpp::CodegenInput cg{&file, &nfa, &dfa};
+    cg.output_path = args.to_stdout ? std::string("<stdout>") : args.output_path;
+    cg.emit_line_directives = !args.noline;
     auto out = lexcpp::emit_c(cg);
 
     if (args.to_stdout) {

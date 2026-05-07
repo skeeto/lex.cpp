@@ -33,7 +33,9 @@ struct LexFile {
     std::vector<StartCond> conds;
     std::vector<Rule> rules;
     std::string section1_verbatim;     // %{ ... %} blocks from section 1
+    SourceLoc   section1_loc;          // line where the verbatim block starts
     std::string section3;              // user-code section verbatim
+    SourceLoc   section3_loc;          // line where section 3 begins
 
     struct Options {
         bool noyywrap = false;

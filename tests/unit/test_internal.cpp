@@ -309,6 +309,38 @@ void test_start_cond_decl() {
     CHECK(r->conds[2].exclusive);
 }
 
+void test_line_directives() {
+    std::fprintf(stderr, "test_line_directives\n");
+    lexcpp::Diagnostics d;
+    auto file = lexcpp::parse_lex_file("scanner.l",
+        "%option noyywrap\n"
+        "%{\nint x = 0;\n%}\n"
+        "%%\n"
+        "[a-z]+ ECHO;\n"
+        "%%\n"
+        "int main(void){ return 0; }\n", d);
+    CHECK(file.has_value());
+    lexcpp::NFA nfa;
+    lexcpp::init_nfa(nfa, {"INITIAL"}, {0});
+    auto resolver = [](std::string_view) -> std::optional<std::string> {
+        return std::nullopt;
+    };
+    auto t = lexcpp::parse_regex(file->rules[0].pattern, resolver, false, d, {});
+    lexcpp::add_rule_to_nfa(nfa, t.get(), 0, {});
+    auto dfa = lexcpp::build_dfa(nfa);
+    {
+        lexcpp::CodegenInput in{&*file, &nfa, &dfa, "out.c", true};
+        auto code = lexcpp::emit_c(in);
+        CHECK(code.find("#line ") != std::string::npos);
+        CHECK(code.find("\"scanner.l\"") != std::string::npos);
+    }
+    {
+        lexcpp::CodegenInput in{&*file, &nfa, &dfa, "out.c", false};
+        auto code = lexcpp::emit_c(in);
+        CHECK(code.find("#line ") == std::string::npos);
+    }
+}
+
 void test_diag_warn() {
     std::fprintf(stderr, "test_diag_warn\n");
     lexcpp::Diagnostics d;
@@ -346,6 +378,7 @@ int main() {
     test_start_cond_decl();
     test_reentrant_option();
     test_bison_bridge_option();
+    test_line_directives();
     test_diag_warn();
 
     std::fprintf(stderr, "\nUnit tests: %d passed, %d failed\n", g_pass, g_fail);

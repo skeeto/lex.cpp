@@ -11,6 +11,45 @@
 namespace lexcpp {
 namespace {
 
+// ---------- #line tracking -------------------------------------------------
+
+std::size_t count_lines(std::string_view s) {
+    std::size_t n = 0;
+    for (char c : s) if (c == '\n') ++n;
+    return n;
+}
+
+// Append a #line directive that points the next emitted line at the
+// given source file/line. Caller decides when this is appropriate.
+void emit_line_directive(std::string& out, std::string_view file,
+                         std::uint32_t line, bool enabled) {
+    if (!enabled) return;
+    out += "#line ";
+    out += std::to_string(line);
+    out += " \"";
+    for (char c : file) {
+        if (c == '\\' || c == '"') out.push_back('\\');
+        out.push_back(c);
+    }
+    out += "\"\n";
+}
+
+// Restore line-tracking back to the generated file at the next
+// upcoming output line.
+void restore_line_directive(std::string& out, std::string_view gen_file,
+                            bool enabled) {
+    if (!enabled) return;
+    std::size_t next_line = count_lines(out) + 2;  // +1 for this dir, +1 for next
+    out += "#line ";
+    out += std::to_string(next_line);
+    out += " \"";
+    for (char c : gen_file) {
+        if (c == '\\' || c == '"') out.push_back('\\');
+        out.push_back(c);
+    }
+    out += "\"\n";
+}
+
 // ---------- helpers --------------------------------------------------------
 
 void append_int_array(std::string& out, std::string_view name,
@@ -124,7 +163,7 @@ std::vector<std::size_t> resolve_pipe_targets(const LexFile& f) {
 }
 
 void emit_action_dispatch(std::string& out, const LexFile& f,
-                          const RuleMap& rm) {
+                          const RuleMap& rm, bool line_directives) {
     auto tgt = resolve_pipe_targets(f);
     out += "switch (yy_rule) {\n";
     for (std::size_t i = 0; i < f.rules.size(); ++i) {
@@ -137,6 +176,8 @@ void emit_action_dispatch(std::string& out, const LexFile& f,
             continue;
         }
         out += " {\n";
+        emit_line_directive(out, f.rules[i].loc.file, f.rules[i].loc.line,
+                            line_directives);
         out += f.rules[i].action;
         out += "\n    } break;\n";
     }
@@ -189,7 +230,7 @@ std::string yylex_signature(const LexFile& f) {
 }
 
 std::string yy_lex_body(const LexFile& f, const DFA& dfa, const NFA& nfa,
-                        const RuleMap& rm) {
+                        const RuleMap& rm, bool line_directives) {
     (void)dfa;
     std::ostringstream s;
     s << yylex_signature(f) << " {\n";
@@ -307,7 +348,7 @@ std::string yy_lex_body(const LexFile& f, const DFA& dfa, const NFA& nfa,
 
     {
         std::string disp;
-        emit_action_dispatch(disp, f, rm);
+        emit_action_dispatch(disp, f, rm, line_directives);
         // indent disp
         std::string indented;
         for (char c : disp) {
@@ -347,10 +388,15 @@ std::string emit_c(const CodegenInput& in) {
     out += "\n";
 
     // User %{ %} block(s)
+    const std::string& gen_file = in.output_path.empty() ? std::string("lex.yy.c")
+                                                         : in.output_path;
     if (!f.section1_verbatim.empty()) {
         out += "/* user prologue */\n";
+        emit_line_directive(out, f.section1_loc.file, f.section1_loc.line,
+                            in.emit_line_directives);
         out += f.section1_verbatim;
         if (out.back() != '\n') out += "\n";
+        restore_line_directive(out, gen_file, in.emit_line_directives);
     }
 
     // Prefix renames
@@ -421,7 +467,7 @@ std::string emit_c(const CodegenInput& in) {
         out += "#define yylloc ((YYLTYPE*)YY_G->yylloc_r)\n";
 
     // yylex with action dispatch.
-    out += yy_lex_body(f, d, nfa, rm);
+    out += yy_lex_body(f, d, nfa, rm, in.emit_line_directives);
     out += "\n";
 
     // yywrap default if requested.
@@ -435,6 +481,8 @@ std::string emit_c(const CodegenInput& in) {
     // User epilogue.
     if (!f.section3.empty()) {
         out += "/* user epilogue */\n";
+        emit_line_directive(out, f.section3_loc.file, f.section3_loc.line,
+                            in.emit_line_directives);
         out += f.section3;
         if (out.back() != '\n') out += "\n";
     }

@@ -98,6 +98,8 @@ struct Parser {
 
             // %{ ... %} verbatim block
             if (c0 == '%' && peek(1) == '{') {
+                if (out.section1_verbatim.empty())
+                    out.section1_loc = loc();
                 get(); get();
                 while (!at_end() && peek() != '\n') get();
                 if (peek() == '\n') get();
@@ -512,6 +514,7 @@ struct Parser {
 
     // ---------------------------------------------------- section 3
     void parse_section3() {
+        out.section3_loc = loc();
         while (!at_end()) out.section3.push_back(get());
     }
 };
