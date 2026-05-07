@@ -344,6 +344,9 @@ std::string yy_lex_body_reject(const LexFile& f, const NFA& nfa,
         s << "            if (yytext[yy_i] == '\\n') yylineno++;\n";
     }
     s << "        yy_at_bol = (yy_len > 0 && yytext[yy_len - 1] == '\\n');\n";
+    s << "        if (yy_flex_debug) fprintf(stderr,\n";
+    s << "            \"--accepting rule at line %d (\\\"%s\\\")\\n\",\n";
+    s << "            yy_rule_line[yy_rule], yytext);\n";
     s << "        #ifdef YY_USER_ACTION\n";
     s << "        YY_USER_ACTION\n";
     s << "        #endif\n";
@@ -543,6 +546,9 @@ std::string yy_lex_body(const LexFile& f, const DFA& dfa, const NFA& nfa,
         s << "            if (yytext[yy_i] == '\\n') yylineno++;\n";
     }
     s << "        yy_at_bol = (yy_len > 0 && yytext[yy_len - 1] == '\\n');\n";
+    s << "        if (yy_flex_debug) fprintf(stderr,\n";
+    s << "            \"--accepting rule at line %d (\\\"%s\\\")\\n\",\n";
+    s << "            yy_rule_line[yy_rule], yytext);\n";
     s << "        #ifdef YY_USER_ACTION\n";
     s << "        YY_USER_ACTION\n";
     s << "        #endif\n";
@@ -709,6 +715,13 @@ std::string emit_c(const CodegenInput& in) {
         if (tr.empty()) tr.push_back(0);
         append_int_array(out, "yy_rule_trail_len", "int", tr);
 
+        // Per-rule source line number, for the %option debug trace.
+        std::vector<long long> rl;
+        for (const auto& r : f.rules)
+            if (!r.eof) rl.push_back(r.loc.line);
+        if (rl.empty()) rl.push_back(0);
+        append_int_array(out, "yy_rule_line", "int", rl);
+
         // Variable-length trailing context: per-state list of rule
         // ids whose boundary state is in this DFA-state's NFA-set.
         bool any_var_trail = false;
@@ -742,6 +755,12 @@ std::string emit_c(const CodegenInput& in) {
         }
     }
     out += "\n";
+
+    // %option debug toggle. yy_flex_debug is exposed to user code so
+    // they can flip it at runtime; the initial value follows the option.
+    out += "int yy_flex_debug = ";
+    out += (f.options.debug ? "1" : "0");
+    out += ";\n\n";
 
     // Embed runtime helpers.
     out += "/* runtime helpers (from runtime/runtime.c.in) */\n";
