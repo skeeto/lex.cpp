@@ -49,10 +49,28 @@ using NodePtr = std::unique_ptr<Node>;
 using MacroResolver =
     std::function<std::optional<std::string>(std::string_view name)>;
 
+// Pattern-level result: AST plus pre-computed flags for the rule.
+struct ParsedPattern {
+    NodePtr tree;
+    int     trail_len = 0;          // 0 == no trailing context
+    bool    eol_anchored = false;
+};
+
 [[nodiscard]] NodePtr parse_regex(std::string_view src,
                                   const MacroResolver& macros,
                                   bool case_insensitive,
                                   Diagnostics& diag,
                                   const SourceLoc& loc);
+
+// Pattern-level entry point that handles `r/s` trailing context.
+// `s` must be fixed-length in our minimal scope; otherwise diagnoses.
+[[nodiscard]] ParsedPattern parse_pattern(std::string_view src,
+                                          const MacroResolver& macros,
+                                          bool case_insensitive,
+                                          Diagnostics& diag,
+                                          const SourceLoc& loc);
+
+// Returns the byte length of a regex tree if it's fixed; -1 otherwise.
+[[nodiscard]] int fixed_length(const Node* n);
 
 } // namespace lexcpp

@@ -285,6 +285,12 @@ std::string yy_lex_body(const LexFile& f, const DFA& dfa, const NFA& nfa,
     s << "        }\n";
 
     s << "        yytext = yy_buf + yy_base;\n";
+    s << "        {\n";
+    s << "            int yy_trail = yy_rule_trail_len[yy_rule];\n";
+    s << "            if (yy_trail > 0 && (size_t)yy_trail <= yy_len) {\n";
+    s << "                yy_len -= (size_t)yy_trail;\n";
+    s << "            }\n";
+    s << "        }\n";
     s << "        yyleng = (int)yy_len;\n";
     s << "        yy_text_save = yytext[yy_len];\n";
     s << "        yytext[yy_len] = 0;\n";
@@ -391,6 +397,13 @@ std::string emit_c(const CodegenInput& in) {
         }
         append_int_array(out, "yy_cond_normal", "int", cs_n);
         append_int_array(out, "yy_cond_bol",    "int", cs_b);
+
+        // Per-rule trailing-context length (0 = none).
+        std::vector<long long> tr;
+        tr.reserve(nfa.rule_trail.size());
+        for (auto t : nfa.rule_trail) tr.push_back(t);
+        if (tr.empty()) tr.push_back(0);
+        append_int_array(out, "yy_rule_trail_len", "int", tr);
     }
     out += "\n";
 

@@ -200,14 +200,15 @@ int main(int argc, char** argv) {
         }
 
         lexcpp::SourceLoc rl = r.loc;
-        auto tree = lexcpp::parse_regex(r.pattern, resolver,
+        auto pp = lexcpp::parse_pattern(r.pattern, resolver,
                                         file.options.case_insensitive,
                                         diag, rl);
-        if (!tree) {
+        if (!pp.tree) {
             diag.error(rl, "failed to parse pattern: " + r.pattern);
             return 1;
         }
-        lexcpp::add_rule_to_nfa(nfa, tree.get(), nfa_rule_id++, sites);
+        lexcpp::add_rule_to_nfa(nfa, pp.tree.get(), nfa_rule_id++,
+                                sites, pp.trail_len);
     }
     if (!diag.ok()) return 1;
 

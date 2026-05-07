@@ -328,6 +328,45 @@ private:
     }
 };
 
+int find_top_level_slash(std::string_view src) {
+    int depth = 0;
+    bool in_class = false, in_quoted = false;
+    for (std::size_t i = 0; i < src.size(); ++i) {
+        char c = src[i];
+        if (in_class)  { if (c == ']') in_class = false; continue; }
+        if (in_quoted) {
+            if (c == '\\' && i + 1 < src.size()) ++i;
+            else if (c == '"') in_quoted = false;
+            continue;
+        }
+        if (c == '\\' && i + 1 < src.size()) { ++i; continue; }
+        if (c == '[')  { in_class = true;  continue; }
+        if (c == '"')  { in_quoted = true; continue; }
+        if (c == '(')  { ++depth;          continue; }
+        if (c == ')')  { if (depth) --depth; continue; }
+        if (c == '/' && depth == 0) return (int)i;
+    }
+    return -1;
+}
+
+bool peek_is_eol_anchor(const Node* n) {
+    if (!n) return false;
+    if (n->kind == NodeKind::AnchorEOL) return true;
+    if (n->kind == NodeKind::Concat && n->b)
+        return n->b->kind == NodeKind::AnchorEOL;
+    return false;
+}
+
+NodePtr strip_eol_anchor(NodePtr n) {
+    if (!n) return n;
+    if (n->kind == NodeKind::AnchorEOL) return nullptr;
+    if (n->kind == NodeKind::Concat && n->b &&
+        n->b->kind == NodeKind::AnchorEOL) {
+        return std::move(n->a);
+    }
+    return n;
+}
+
 } // namespace
 
 NodePtr parse_regex(std::string_view src,
@@ -337,6 +376,99 @@ NodePtr parse_regex(std::string_view src,
                     const SourceLoc& loc) {
     Parser p(src, macros, case_insensitive, diag, loc);
     return p.parse_top();
+}
+
+int fixed_length(const Node* n) {
+    if (!n) return 0;
+    switch (n->kind) {
+        case NodeKind::Empty:      return 0;
+        case NodeKind::Class:      return 1;
+        case NodeKind::Concat: {
+            int la = fixed_length(n->a.get());
+            if (la < 0) return -1;
+            int lb = fixed_length(n->b.get());
+            if (lb < 0) return -1;
+            return la + lb;
+        }
+        case NodeKind::Alt: {
+            int la = fixed_length(n->a.get());
+            int lb = fixed_length(n->b.get());
+            if (la < 0 || lb < 0 || la != lb) return -1;
+            return la;
+        }
+        case NodeKind::Star: case NodeKind::Plus: case NodeKind::Question:
+            return -1;
+        case NodeKind::Repeat:
+            if (n->lo == n->hi && n->hi != Node::kInf) {
+                int la = fixed_length(n->a.get());
+                if (la < 0) return -1;
+                return la * static_cast<int>(n->lo);
+            }
+            return -1;
+        case NodeKind::AnchorBOL: case NodeKind::AnchorEOL:
+            return 0;   // zero-width assertions
+    }
+    return -1;
+}
+
+ParsedPattern parse_pattern(std::string_view src,
+                            const MacroResolver& macros,
+                            bool case_insensitive,
+                            Diagnostics& diag,
+                            const SourceLoc& loc) {
+    ParsedPattern out;
+    int slash = find_top_level_slash(src);
+    if (slash < 0) {
+        out.tree = parse_regex(src, macros, case_insensitive, diag, loc);
+        if (out.tree && peek_is_eol_anchor(out.tree.get())) {
+            out.eol_anchored = true;
+        }
+        return out;
+    }
+    auto r_src = src.substr(0, static_cast<std::size_t>(slash));
+    auto s_src = src.substr(static_cast<std::size_t>(slash) + 1);
+    auto r = parse_regex(r_src, macros, case_insensitive, diag, loc);
+    auto s = parse_regex(s_src, macros, case_insensitive, diag, loc);
+    if (!r || !s) return {};
+
+    bool s_had_eol = peek_is_eol_anchor(s.get());
+    auto s_body = strip_eol_anchor(std::move(s));
+    int len = fixed_length(s_body.get());
+    if (len < 0) {
+        diag.error(loc, "trailing context `/s` must be fixed length");
+        return {};
+    }
+    out.trail_len = len + (s_had_eol ? 1 : 0);
+
+    // r ends in ^? Strip the BOL too -- it stays at the front of the
+    // combined regex. r$ is not allowed (flex restricts).
+    if (peek_is_eol_anchor(r.get())) {
+        diag.error(loc, "`$` is not permitted on the head of `r/s`");
+        return {};
+    }
+
+    auto cat = std::make_unique<Node>();
+    cat->kind = NodeKind::Concat;
+    cat->a = std::move(r);
+    if (s_body) {
+        cat->b = std::move(s_body);
+    } else {
+        cat->b = std::make_unique<Node>();
+        cat->b->kind = NodeKind::Empty;
+    }
+    out.tree = std::move(cat);
+    if (s_had_eol) {
+        // append a literal \n so the trail includes it
+        auto nl = std::make_unique<Node>();
+        nl->kind = NodeKind::Class;
+        nl->cls.add('\n');
+        auto wrap = std::make_unique<Node>();
+        wrap->kind = NodeKind::Concat;
+        wrap->a = std::move(out.tree);
+        wrap->b = std::move(nl);
+        out.tree = std::move(wrap);
+    }
+    return out;
 }
 
 } // namespace lexcpp

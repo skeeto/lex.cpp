@@ -31,6 +31,7 @@ struct NFA {
     std::vector<std::uint8_t> cond_excl;  // 0 == inclusive, 1 == exclusive
     std::vector<std::uint8_t> rule_bol;   // per rule id
     std::vector<std::uint8_t> rule_eol;   // per rule id
+    std::vector<std::int32_t> rule_trail; // per rule id; 0 = none
     std::vector<std::vector<std::int32_t>> eof_rules; // per cond id, rule ids
 };
 
@@ -44,7 +45,7 @@ struct RuleSites {
 };
 
 void add_rule_to_nfa(NFA& nfa, const Node* root, std::int32_t rule_id,
-                     const RuleSites& sites);
+                     const RuleSites& sites, std::int32_t trail_len = 0);
 
 void add_eof_rule(NFA& nfa, std::int32_t rule_id, const RuleSites& sites);
 

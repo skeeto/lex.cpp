@@ -221,7 +221,7 @@ void init_nfa(NFA& nfa,
 }
 
 void add_rule_to_nfa(NFA& nfa, const Node* root, std::int32_t rule_id,
-                     const RuleSites& sites) {
+                     const RuleSites& sites, std::int32_t trail_len) {
     bool bol = false, eol = false;
     const Node* body = unwrap_anchors(root, bol, eol);
     Frag f = compile(nfa, body);
@@ -229,9 +229,11 @@ void add_rule_to_nfa(NFA& nfa, const Node* root, std::int32_t rule_id,
     while (static_cast<std::int32_t>(nfa.rule_bol.size()) <= rule_id) {
         nfa.rule_bol.push_back(0);
         nfa.rule_eol.push_back(0);
+        nfa.rule_trail.push_back(0);
     }
     nfa.rule_bol[static_cast<std::size_t>(rule_id)] = bol ? 1 : 0;
     nfa.rule_eol[static_cast<std::size_t>(rule_id)] = eol ? 1 : 0;
+    nfa.rule_trail[static_cast<std::size_t>(rule_id)] = trail_len;
     connect_to_conds(nfa, f.s, bol, sites);
 }
 
