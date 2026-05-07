@@ -344,7 +344,7 @@ int find_top_level_slash(std::string_view src) {
         if (c == '"')  { in_quoted = true; continue; }
         if (c == '(')  { ++depth;          continue; }
         if (c == ')')  { if (depth) --depth; continue; }
-        if (c == '/' && depth == 0) return (int)i;
+        if (c == '/' && depth == 0) return static_cast<int>(i);
     }
     return -1;
 }
@@ -406,7 +406,8 @@ int fixed_length(const Node* n) {
             }
             return -1;
         case NodeKind::AnchorBOL: case NodeKind::AnchorEOL:
-            return 0;   // zero-width assertions
+        case NodeKind::TrailBoundary:
+            return 0;   // zero-width assertions / markers
     }
     return -1;
 }

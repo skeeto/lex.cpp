@@ -214,7 +214,9 @@ void test_codegen_smoke() {
     CHECK(t != nullptr);
     lexcpp::add_rule_to_nfa(nfa, t.get(), 0, {});
     auto dfa = lexcpp::build_dfa(nfa);
-    auto code = lexcpp::emit_c({&*file, &nfa, &dfa});
+    lexcpp::CodegenInput cg_in;
+    cg_in.file = &*file; cg_in.nfa = &nfa; cg_in.dfa = &dfa;
+    auto code = lexcpp::emit_c(cg_in);
     CHECK(code.find("int yylex") != std::string::npos);
     CHECK(code.find("yywrap") != std::string::npos);
 }
@@ -324,7 +326,8 @@ void test_header_emit() {
     auto t = lexcpp::parse_regex("foo", resolver, false, d, {});
     lexcpp::add_rule_to_nfa(nfa, t.get(), 0, {});
     auto dfa = lexcpp::build_dfa(nfa);
-    lexcpp::CodegenInput in{&*file, &nfa, &dfa};
+    lexcpp::CodegenInput in;
+    in.file = &*file; in.nfa = &nfa; in.dfa = &dfa;
     auto h = lexcpp::emit_h(in);
     CHECK(h.find("YY_BUFFER_STATE") != std::string::npos);
     CHECK(h.find("#define INITIAL 0") != std::string::npos);
@@ -347,7 +350,8 @@ void test_header_reentrant() {
     auto t = lexcpp::parse_regex("foo", resolver, false, d, {});
     lexcpp::add_rule_to_nfa(nfa, t.get(), 0, {});
     auto dfa = lexcpp::build_dfa(nfa);
-    lexcpp::CodegenInput in{&*file, &nfa, &dfa};
+    lexcpp::CodegenInput in;
+    in.file = &*file; in.nfa = &nfa; in.dfa = &dfa;
     auto h = lexcpp::emit_h(in);
     CHECK(h.find("typedef struct yyguts_t *yyscan_t;") != std::string::npos);
     CHECK(h.find("yylex_init(yyscan_t") != std::string::npos);
@@ -430,13 +434,19 @@ void test_line_directives() {
     lexcpp::add_rule_to_nfa(nfa, t.get(), 0, {});
     auto dfa = lexcpp::build_dfa(nfa);
     {
-        lexcpp::CodegenInput in{&*file, &nfa, &dfa, "out.c", true};
+        lexcpp::CodegenInput in;
+        in.file = &*file; in.nfa = &nfa; in.dfa = &dfa;
+        in.output_path = "out.c";
+        in.emit_line_directives = true;
         auto code = lexcpp::emit_c(in);
         CHECK(code.find("#line ") != std::string::npos);
         CHECK(code.find("\"scanner.l\"") != std::string::npos);
     }
     {
-        lexcpp::CodegenInput in{&*file, &nfa, &dfa, "out.c", false};
+        lexcpp::CodegenInput in;
+        in.file = &*file; in.nfa = &nfa; in.dfa = &dfa;
+        in.output_path = "out.c";
+        in.emit_line_directives = false;
         auto code = lexcpp::emit_c(in);
         CHECK(code.find("#line ") == std::string::npos);
     }

@@ -268,7 +268,10 @@ int main(int argc, char** argv) {
     lexcpp::DFA dfa = lexcpp::build_dfa(nfa, use_ec, use_meta);
 
     // Codegen.
-    lexcpp::CodegenInput cg{&file, &nfa, &dfa};
+    lexcpp::CodegenInput cg;
+    cg.file = &file;
+    cg.nfa  = &nfa;
+    cg.dfa  = &dfa;
     cg.output_path = args.to_stdout ? std::string("<stdout>") : args.output_path;
     cg.emit_line_directives = !args.noline;
     cg.compress = args.compress;

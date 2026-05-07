@@ -232,7 +232,7 @@ std::string yylex_signature(const LexFile& f) {
 std::string yy_lex_body_reject(const LexFile& f, const NFA& nfa,
                                const RuleMap& rm, bool line_directives) {
     std::ostringstream s;
-    int nrules = (int)rm.total_nfa_rules;
+    int nrules = static_cast<int>(rm.total_nfa_rules);
     if (nrules <= 0) nrules = 1;
     s << yylex_signature(f) << " {\n";
     if (f.options.bison_bridge)
