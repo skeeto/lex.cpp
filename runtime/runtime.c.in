@@ -252,12 +252,22 @@ static void yy_buf_grow(YY_BUFFER_STATE b, size_t want) {
     b->yyb_data[b->yyb_end + 1] = 0;
 }
 
+/* User-overridable input hook. The default reads from yyin via fread. */
+#ifndef YY_INPUT
+#define YY_INPUT(buf, result, max_size)                                    \
+    ((result) = fread((buf), 1, (max_size), yyin))
+#endif
+
 static void yy_refill(YY_DECLPM) {
     YY_BUFFER_STATE b = YY_CURRENT_BUFFER;
-    if (!b || b->yyb_done || !b->yy_input_file) return;
+    if (!b || b->yyb_done) return;
     yy_buf_grow(b, b->yyb_end + 4096);
-    size_t n = fread(b->yyb_data + b->yyb_end, 1,
-                     b->yyb_size - b->yyb_end, b->yy_input_file);
+    size_t n = 0;
+    {
+        char *yy_input_buf = b->yyb_data + b->yyb_end;
+        size_t yy_input_max = b->yyb_size - b->yyb_end;
+        YY_INPUT(yy_input_buf, n, yy_input_max);
+    }
     b->yyb_end += n;
     if (n == 0) b->yyb_done = 1;
     b->yyb_data[b->yyb_end]     = 0;
