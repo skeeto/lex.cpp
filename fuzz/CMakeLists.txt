@@ -12,6 +12,11 @@ target_compile_options(lexcpp_fuzz_iface INTERFACE
 target_link_options(lexcpp_fuzz_iface INTERFACE
     -fsanitize=fuzzer,address,undefined)
 
+# Fuzz harnesses link diag.cpp which goes through the platform layer
+# for stderr; pull in platform_posix.cpp (clang+linux only) and tell
+# it not to emit a main.
+set(FUZZ_PLATFORM ${CMAKE_SOURCE_DIR}/src/platform_posix.cpp)
+
 # fuzz_regex: random bytes -> regex parser -> NFA construction.
 add_executable(fuzz_regex
     fuzz_regex.cc
@@ -19,7 +24,9 @@ add_executable(fuzz_regex
     ${CMAKE_SOURCE_DIR}/src/regex.cpp
     ${CMAKE_SOURCE_DIR}/src/nfa.cpp
     ${CMAKE_SOURCE_DIR}/src/eclass.cpp
-    ${CMAKE_SOURCE_DIR}/src/dfa.cpp)
+    ${CMAKE_SOURCE_DIR}/src/dfa.cpp
+    ${FUZZ_PLATFORM})
+target_compile_definitions(fuzz_regex PRIVATE LEXCPP_PLATFORM_NO_MAIN)
 target_include_directories(fuzz_regex PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(fuzz_regex PRIVATE lexcpp_fuzz_iface lexcpp_warnings)
 
@@ -32,7 +39,10 @@ add_executable(fuzz_lfile
     ${CMAKE_SOURCE_DIR}/src/nfa.cpp
     ${CMAKE_SOURCE_DIR}/src/eclass.cpp
     ${CMAKE_SOURCE_DIR}/src/dfa.cpp
-    ${CMAKE_SOURCE_DIR}/src/codegen.cpp)
+    ${CMAKE_SOURCE_DIR}/src/codegen.cpp
+    ${CMAKE_SOURCE_DIR}/src/tables.cpp
+    ${FUZZ_PLATFORM})
+target_compile_definitions(fuzz_lfile PRIVATE LEXCPP_PLATFORM_NO_MAIN)
 target_include_directories(fuzz_lfile PRIVATE
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_BINARY_DIR}/src)

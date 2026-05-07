@@ -1,4 +1,5 @@
-add_executable(lex
+# Cross-platform sources -- everything above the platform layer.
+set(LEXCPP_CORE_SOURCES
     main.cpp
     diag.cpp
     source.cpp
@@ -7,8 +8,30 @@ add_executable(lex
     eclass.cpp
     dfa.cpp
     codegen.cpp
-    tables.cpp
+    tables.cpp)
+
+# Platform-specific. Both files internally guard on _WIN32 so adding
+# both is harmless; we still pick the right one to keep the toolchain
+# from chewing on inactive includes (e.g. <windows.h> on Linux).
+if(WIN32)
+    set(LEXCPP_PLATFORM_SOURCES platform_windows.cpp)
+else()
+    set(LEXCPP_PLATFORM_SOURCES platform_posix.cpp)
+endif()
+
+# Surface the chosen platform .cpp to other CMakeLists (unit tests, fuzz).
+set(LEXCPP_PLATFORM_SOURCES "${LEXCPP_PLATFORM_SOURCES}" PARENT_SCOPE)
+set(LEXCPP_CORE_SOURCES     "${LEXCPP_CORE_SOURCES}"     PARENT_SCOPE)
+
+add_executable(lex
+    ${LEXCPP_CORE_SOURCES}
+    ${LEXCPP_PLATFORM_SOURCES}
 )
+
+if(WIN32)
+    # CommandLineToArgvW lives in shell32.
+    target_link_libraries(lex PRIVATE shell32)
+endif()
 
 target_include_directories(lex PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}

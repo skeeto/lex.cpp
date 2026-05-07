@@ -51,8 +51,11 @@ cmake --build build-fuzz -j
 
 | File | Responsibility |
 |---|---|
-| `src/main.cpp` | CLI parsing, stdin/file slurp, drives the pipeline |
-| `src/diag.{hpp,cpp}` | error / warning collection, `file:line:col` messages |
+| `src/main.cpp` | CLI parsing, drives the pipeline. Defines `core_main(argc, argv)` -- the entry lives in the platform layer below. |
+| `src/platform.hpp` | I/O abstraction: move-only `File`, UTF-8 paths, `stdin_/stdout_/stderr_stream()`, `slurp`. Everything in `src/` above this layer goes through it -- no `<cstdio>` / `<iostream>` / `<fstream>`. |
+| `src/platform_posix.cpp` | POSIX backend: stdio-based `File`, paths pass through, `int main(argc, argv)` treats argv as UTF-8. Defines `main` unless `LEXCPP_PLATFORM_NO_MAIN` is set. |
+| `src/platform_windows.cpp` | Windows backend: `_wfopen` + UTF-8 path conversion, `O_BINARY` on stdio, `main()` ignores argv and re-fetches it via `GetCommandLineW + CommandLineToArgvW` to avoid ANSI codepage corruption. Same `LEXCPP_PLATFORM_NO_MAIN` guard. Links `shell32`. |
+| `src/diag.{hpp,cpp}` | error / warning collection. `snprintf` formats into a stack buffer; the actual write goes through `platform::log_stderr`. |
 | `src/source.{hpp,cpp}` | parses `.l` into a `LexFile` AST |
 | `src/regex.{hpp,cpp}` | parses one regex pattern into a `Node` tree (and `parse_pattern` for `r/s`) |
 | `src/nfa.{hpp,cpp}` | Thompson construction; per-rule BOL/EOL/trail flags |

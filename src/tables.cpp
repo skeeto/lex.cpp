@@ -1,8 +1,7 @@
 #include "tables.hpp"
+#include "platform.hpp"
 
 #include <cstdint>
-#include <cstdio>
-#include <fstream>
 
 namespace lexcpp {
 namespace {
@@ -84,11 +83,10 @@ bool write_tables_file(const std::string& path,
                        bool compressed,
                        const std::string& scanner_name) {
     auto bytes = serialise_tables(nfa, dfa, compressed, scanner_name);
-    std::ofstream os(path, std::ios::binary);
-    if (!os) return false;
-    os.write(reinterpret_cast<const char*>(bytes.data()),
-             static_cast<std::streamsize>(bytes.size()));
-    return os.good();
+    auto f = platform::open_write(path);
+    if (!f.ok()) return false;
+    return f.write_all(std::span<const std::byte>(
+        reinterpret_cast<const std::byte*>(bytes.data()), bytes.size()));
 }
 
 } // namespace lexcpp

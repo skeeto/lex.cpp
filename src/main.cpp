@@ -2,47 +2,42 @@
 #include "diag.hpp"
 #include "dfa.hpp"
 #include "nfa.hpp"
+#include "platform.hpp"
 #include "regex.hpp"
 #include "source.hpp"
 #include "tables.hpp"
 
-#include <cstdio>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <filesystem>
-#include <fstream>
-#include <iostream>
-#include <sstream>
 #include <string>
 #include <string_view>
 #include <unordered_map>
 #include <vector>
 
-#ifdef _WIN32
-#  include <io.h>
-#  include <fcntl.h>
-#endif
-
 namespace {
 
-constexpr std::string_view kVersion = "lex.cpp 0.1.0";
-
-void print_usage(std::FILE* out) {
-    std::fprintf(out,
-        "Usage: lex [OPTIONS] [FILE]\n"
-        "Generate a C scanner from a lex/flex source file.\n"
-        "\n"
-        "  -o, --outfile=FILE        write scanner to FILE (default lex.yy.c)\n"
-        "  -t, --stdout              write scanner to stdout\n"
-        "  -i, --case-insensitive    pattern matching ignores ASCII case\n"
-        "      --yylineno            track line number in yylineno\n"
-        "  -P, --prefix=STRING       use STRING instead of \"yy\" as prefix\n"
-        "  -s, --nodefault           suppress default rule\n"
-        "  -h, --help                show this help and exit\n"
-        "  -V, --version             show version and exit\n"
-        "\n"
-        "If FILE is omitted, lex reads stdin.\n");
-}
+constexpr std::string_view kVersion = "lex.cpp 0.1.0\n";
+constexpr std::string_view kUsage =
+    "Usage: lex [OPTIONS] [FILE]\n"
+    "Generate a C scanner from a lex/flex source file.\n"
+    "\n"
+    "  -o, --outfile=FILE        write scanner to FILE (default lex.yy.c)\n"
+    "  -t, --stdout              write scanner to stdout\n"
+    "  -i, --case-insensitive    pattern matching ignores ASCII case\n"
+    "      --yylineno            track line number in yylineno\n"
+    "  -P, --prefix=STRING       use STRING instead of \"yy\" as prefix\n"
+    "  -s, --nodefault           suppress default rule\n"
+    "  -L, --noline              omit #line directives\n"
+    "  -f, --full                no compression (-Cf alias)\n"
+    "      -Cfe                  ECs only (no comb)\n"
+    "      -Cem, --compress      ECs + meta-ECs + comb (default)\n"
+    "      --header-file[=PATH]  also write a companion .h\n"
+    "      --tables-file=PATH    also write a binary table dump\n"
+    "  -h, --help                show this help and exit\n"
+    "  -V, --version             show version and exit\n"
+    "\n"
+    "If FILE is omitted or '-', lex reads stdin.\n";
 
 struct Args {
     std::string output_path;
@@ -63,14 +58,15 @@ struct Args {
     return s.size() >= p.size() && s.compare(0, p.size(), p) == 0;
 }
 
-int parse_args(int argc, char** argv, Args& out, lexcpp::Diagnostics& diag) {
+int parse_args(int argc, const std::string_view* argv, Args& out,
+               lexcpp::Diagnostics& diag) {
     for (int i = 1; i < argc; ++i) {
         std::string_view a = argv[i];
         if (a == "-h" || a == "--help") {
-            print_usage(stdout);
+            lexcpp::platform::stdout_stream().write_all(kUsage);
             std::exit(0);
         } else if (a == "-V" || a == "--version") {
-            std::printf("%.*s\n", static_cast<int>(kVersion.size()), kVersion.data());
+            lexcpp::platform::stdout_stream().write_all(kVersion);
             std::exit(0);
         } else if (a == "-t" || a == "--stdout") {
             out.to_stdout = true;
@@ -82,9 +78,7 @@ int parse_args(int argc, char** argv, Args& out, lexcpp::Diagnostics& diag) {
             out.nodefault = true;
         } else if (a == "-L" || a == "--noline") {
             out.noline = true;
-        } else if (a == "-f" || a == "--full") {
-            out.compress = lexcpp::CompressMode::Full;
-        } else if (a == "-Cf" || a == "--Cf") {
+        } else if (a == "-f" || a == "--full" || a == "-Cf" || a == "--Cf") {
             out.compress = lexcpp::CompressMode::Full;
         } else if (a == "-Cfe" || a == "--Cfe") {
             out.compress = lexcpp::CompressMode::FullEc;
@@ -95,27 +89,26 @@ int parse_args(int argc, char** argv, Args& out, lexcpp::Diagnostics& diag) {
         } else if (starts_with(a, "--header-file=")) {
             out.header_path = std::string(a.substr(14));
         } else if (a == "--header-file") {
-            // optional argument; if next arg looks like a value, take it
-            if (i + 1 < argc && argv[i + 1][0] != '-') {
+            if (i + 1 < argc && !argv[i + 1].empty() && argv[i + 1][0] != '-') {
                 ++i;
-                out.header_path = argv[i];
+                out.header_path = std::string(argv[i]);
             } else {
-                out.header_path = "_default_";  // placeholder
+                out.header_path = "_default_";
             }
         } else if (a == "-o") {
             if (++i >= argc) { diag.error({}, "-o requires an argument"); return 2; }
-            out.output_path = argv[i];
+            out.output_path = std::string(argv[i]);
         } else if (starts_with(a, "--outfile=")) {
             out.output_path = std::string(a.substr(10));
         } else if (a == "-P") {
             if (++i >= argc) { diag.error({}, "-P requires an argument"); return 2; }
-            out.prefix = argv[i];
+            out.prefix = std::string(argv[i]);
             out.prefix_set = true;
         } else if (starts_with(a, "--prefix=")) {
             out.prefix = std::string(a.substr(9));
             out.prefix_set = true;
         } else if (a == "--") {
-            if (++i < argc) out.input_path = argv[i];
+            if (++i < argc) out.input_path = std::string(argv[i]);
         } else if (!a.empty() && a[0] == '-' && a != "-") {
             diag.error({}, "unknown option: " + std::string(a));
             return 2;
@@ -130,12 +123,6 @@ int parse_args(int argc, char** argv, Args& out, lexcpp::Diagnostics& diag) {
     if (out.output_path.empty() && !out.to_stdout)
         out.output_path = "lex.yy.c";
     return 0;
-}
-
-[[nodiscard]] std::string slurp(std::istream& in) {
-    std::ostringstream ss;
-    ss << in.rdbuf();
-    return std::move(ss).str();
 }
 
 // Normalise text for the parser: strip a leading UTF-8 BOM and collapse
@@ -156,15 +143,23 @@ void normalise_source(std::string& s) {
     s.swap(out);
 }
 
+bool write_string_to_path(std::string_view path, std::string_view payload,
+                          lexcpp::Diagnostics& diag) {
+    auto f = lexcpp::platform::open_write(path);
+    if (!f.ok()) {
+        diag.error({}, "cannot open " + std::string(path) + " for writing");
+        return false;
+    }
+    if (!f.write_all(payload)) {
+        diag.error({}, "write failed: " + std::string(path));
+        return false;
+    }
+    return true;
+}
+
 } // namespace
 
-int main(int argc, char** argv) {
-#ifdef _WIN32
-    // Generated scanners and bytewise input must flow through stdio
-    // unmangled. Opt out of Windows' text-mode CRLF translation.
-    _setmode(_fileno(stdin),  _O_BINARY);
-    _setmode(_fileno(stdout), _O_BINARY);
-#endif
+int core_main(int argc, const std::string_view* argv) {
     lexcpp::Diagnostics diag;
     Args args;
     if (int rc = parse_args(argc, argv, args, diag); rc != 0) return rc;
@@ -173,15 +168,15 @@ int main(int argc, char** argv) {
     std::string source_label;
     if (args.input_path.empty() || args.input_path == "-") {
         source_label = "<stdin>";
-        source = slurp(std::cin);
+        source = lexcpp::platform::slurp(lexcpp::platform::stdin_stream());
     } else {
         source_label = args.input_path;
-        std::ifstream f(args.input_path, std::ios::binary);
-        if (!f) {
+        auto in = lexcpp::platform::open_read(args.input_path);
+        if (!in.ok()) {
             diag.error({}, "cannot open " + args.input_path);
             return 1;
         }
-        source = slurp(f);
+        source = lexcpp::platform::slurp(in);
     }
     normalise_source(source);
 
@@ -231,13 +226,11 @@ int main(int argc, char** argv) {
     lexcpp::NFA nfa;
     lexcpp::init_nfa(nfa, cond_names, cond_excl);
 
-    // Macro resolver: returns the raw definition string.
     std::unordered_map<std::string, std::string> defs;
     for (const auto& [k, v] : file.defs) defs[k] = v;
     auto resolver = [&](std::string_view name) -> std::optional<std::string> {
         auto it = defs.find(std::string(name));
         if (it == defs.end()) return std::nullopt;
-        // Wrap in parens to preserve precedence.
         return "(" + it->second + ")";
     };
 
@@ -273,12 +266,10 @@ int main(int argc, char** argv) {
     }
     if (!diag.ok()) return 1;
 
-    // Build DFA according to the requested compression level.
     bool use_ec   = args.compress != lexcpp::CompressMode::Full;
     bool use_meta = args.compress == lexcpp::CompressMode::Compress;
     lexcpp::DFA dfa = lexcpp::build_dfa(nfa, use_ec, use_meta);
 
-    // Codegen.
     lexcpp::CodegenInput cg;
     cg.file = &file;
     cg.nfa  = &nfa;
@@ -290,29 +281,24 @@ int main(int argc, char** argv) {
     auto out = lexcpp::emit_c(cg);
 
     if (args.to_stdout) {
-        std::fwrite(out.data(), 1, out.size(), stdout);
-    } else {
-        std::ofstream of(args.output_path, std::ios::binary);
-        if (!of) {
-            diag.error({}, "cannot open " + args.output_path + " for writing");
+        if (!lexcpp::platform::stdout_stream().write_all(out)) {
+            diag.error({}, "write to stdout failed");
             return 1;
         }
-        of.write(out.data(), static_cast<std::streamsize>(out.size()));
+    } else if (!write_string_to_path(args.output_path, out, diag)) {
+        return 1;
     }
 
-    // Companion table file.
     if (!args.tables_path.empty()) {
-        bool ok = lexcpp::write_tables_file(
-            args.tables_path, nfa, dfa,
-            args.compress == lexcpp::CompressMode::Compress,
-            "yy");
-        if (!ok) {
+        if (!lexcpp::write_tables_file(
+                args.tables_path, nfa, dfa,
+                args.compress == lexcpp::CompressMode::Compress,
+                "yy")) {
             diag.error({}, "cannot write tables file: " + args.tables_path);
             return 1;
         }
     }
 
-    // Companion header.
     std::string hpath = args.header_path;
     if (!hpath.empty()) {
         if (hpath == "_default_") {
@@ -323,12 +309,7 @@ int main(int argc, char** argv) {
             else hpath += ".h";
         }
         auto h = lexcpp::emit_h(cg);
-        std::ofstream of(hpath, std::ios::binary);
-        if (!of) {
-            diag.error({}, "cannot open " + hpath + " for writing");
-            return 1;
-        }
-        of.write(h.data(), static_cast<std::streamsize>(h.size()));
+        if (!write_string_to_path(hpath, h, diag)) return 1;
     }
     return diag.ok() ? 0 : 1;
 }
