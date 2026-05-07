@@ -398,7 +398,10 @@ void yy_pop_state(YY_DECLPM) {
 }
 
 int yy_top_state(YY_DECLPM) {
-    if (yy_state_stack_top == 0) return yy_start;
+    if (yy_state_stack_top == 0) {
+        fprintf(stderr, "yy_top_state(): empty stack\n");
+        exit(2);
+    }
     return yy_state_stack[yy_state_stack_top - 1];
 }
 

@@ -1,0 +1,2 @@
+flex's yy_top_state segfaults on an empty stack (UB); lex.cpp emits a
+clean YY_FATAL_ERROR exit instead, so this test is lex-only.

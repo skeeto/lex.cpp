@@ -37,6 +37,13 @@ if(EXISTS ${CASE_DIR}/gen_args.txt)
     file(STRINGS ${CASE_DIR}/gen_args.txt GEN_ARGS)
 endif()
 
+# When skip_flex.txt is present we don't run flex at all -- the test is
+# intentionally lex-only (e.g. exercising behaviour where flex has UB).
+set(SKIP_FLEX OFF)
+if(EXISTS ${CASE_DIR}/skip_flex.txt)
+    set(SKIP_FLEX ON)
+endif()
+
 # ---------------------------------------------------------------- helpers
 
 function(_run_or_die label cmd)
@@ -110,15 +117,17 @@ endfunction()
 
 # ---------------------------------------------------------------- flex side
 
-_generate_with(flex ${FLEX_EXE} ${WORK_DIR}/flex_scanner.c)
-_compile(${WORK_DIR}/flex_scanner.c ${WORK_DIR}/flex_scanner)
-_run(${WORK_DIR}/flex_scanner ${WORK_DIR}/flex.out flex_status)
+if(NOT SKIP_FLEX)
+    _generate_with(flex ${FLEX_EXE} ${WORK_DIR}/flex_scanner.c)
+    _compile(${WORK_DIR}/flex_scanner.c ${WORK_DIR}/flex_scanner)
+    _run(${WORK_DIR}/flex_scanner ${WORK_DIR}/flex.out flex_status)
 
-if(NOT flex_status EQUAL EXPECTED_STATUS)
-    file(READ ${WORK_DIR}/flex.out flex_out)
-    message(FATAL_ERROR
-        "${CASE_NAME}: flex scanner exited ${flex_status}, expected ${EXPECTED_STATUS}\n"
-        "stdout was:\n${flex_out}")
+    if(NOT flex_status EQUAL EXPECTED_STATUS)
+        file(READ ${WORK_DIR}/flex.out flex_out)
+        message(FATAL_ERROR
+            "${CASE_NAME}: flex scanner exited ${flex_status}, expected ${EXPECTED_STATUS}\n"
+            "stdout was:\n${flex_out}")
+    endif()
 endif()
 
 # ---------------------------------------------------------------- lex side
@@ -148,16 +157,18 @@ if(LEX_READY)
             "stdout was:\n${lex_out}")
     endif()
 
-    execute_process(
-        COMMAND ${CMAKE_COMMAND} -E compare_files
-                ${WORK_DIR}/flex.out ${WORK_DIR}/lex.out
-        RESULT_VARIABLE diff_rv)
-    if(NOT diff_rv EQUAL 0)
-        file(READ ${WORK_DIR}/flex.out flex_out)
-        file(READ ${WORK_DIR}/lex.out  lex_out)
-        message(FATAL_ERROR
-            "${CASE_NAME}: lex output differs from flex.\n"
-            "--- flex stdout (${WORK_DIR}/flex.out) ---\n${flex_out}"
-            "--- lex stdout  (${WORK_DIR}/lex.out)  ---\n${lex_out}")
+    if(NOT SKIP_FLEX)
+        execute_process(
+            COMMAND ${CMAKE_COMMAND} -E compare_files
+                    ${WORK_DIR}/flex.out ${WORK_DIR}/lex.out
+            RESULT_VARIABLE diff_rv)
+        if(NOT diff_rv EQUAL 0)
+            file(READ ${WORK_DIR}/flex.out flex_out)
+            file(READ ${WORK_DIR}/lex.out  lex_out)
+            message(FATAL_ERROR
+                "${CASE_NAME}: lex output differs from flex.\n"
+                "--- flex stdout (${WORK_DIR}/flex.out) ---\n${flex_out}"
+                "--- lex stdout  (${WORK_DIR}/lex.out)  ---\n${lex_out}")
+        endif()
     endif()
 endif()
