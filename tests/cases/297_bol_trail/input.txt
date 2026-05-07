@@ -1,0 +1,2 @@
+namespace x { class label_effects; }
+class real_class;

@@ -371,12 +371,16 @@ struct Parser {
                 continue;
             }
             // Indented C: a line starting with whitespace inside the
-            // rules section is verbatim code (typically goes into yylex
-            // body in flex). For our minimal scope, we drop it with a
-            // warning unless it's empty.
+            // rules section is verbatim code that flex puts at the
+            // top of yylex(). Before any rule has been parsed it
+            // joins section2_prologue (alongside any `%{ ... %}`
+            // blocks); after the first rule we ignore it (rare).
             if (c == ' ' || c == '\t') {
                 std::string l = read_line_keep_nl();
-                // ignore
+                if (out.rules.empty()) {
+                    if (out.section2_prologue.empty()) out.section2_loc = loc();
+                    out.section2_prologue += l;
+                }
                 continue;
             }
             // `}` (optionally followed by whitespace + newline) closes

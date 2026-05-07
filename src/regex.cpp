@@ -478,6 +478,18 @@ ParsedPattern parse_pattern(std::string_view src,
     auto s = parse_regex(s_src, macros, case_insensitive, diag, loc);
     if (!r || !s) return {};
 
+    // Lift a leading `^` off `r` so the final tree's top-level Concat
+    // has AnchorBOL as its left child -- unwrap_anchors only looks at
+    // the root, and AnchorBOL deeper in the tree is treated as a
+    // no-op. Without this, `^foo/bar` would silently match `foo/bar`
+    // anywhere on a line.
+    bool head_bol = false;
+    if (r && r->kind == NodeKind::Concat && r->a &&
+        r->a->kind == NodeKind::AnchorBOL) {
+        head_bol = true;
+        r = std::move(r->b);
+    }
+
     bool s_had_eol = peek_is_eol_anchor(s.get());
     auto s_body = strip_eol_anchor(std::move(s));
 
@@ -509,6 +521,15 @@ ParsedPattern parse_pattern(std::string_view src,
             wrap->kind = NodeKind::Concat;
             wrap->a = std::move(out.tree);
             wrap->b = std::move(nl);
+            out.tree = std::move(wrap);
+        }
+        if (head_bol) {
+            auto bol = std::make_unique<Node>();
+            bol->kind = NodeKind::AnchorBOL;
+            auto wrap = std::make_unique<Node>();
+            wrap->kind = NodeKind::Concat;
+            wrap->a = std::move(bol);
+            wrap->b = std::move(out.tree);
             out.tree = std::move(wrap);
         }
         return out;
@@ -544,6 +565,15 @@ ParsedPattern parse_pattern(std::string_view src,
     cat->a = std::move(r);
     cat->b = std::move(inner);
     out.tree = std::move(cat);
+    if (head_bol) {
+        auto bol = std::make_unique<Node>();
+        bol->kind = NodeKind::AnchorBOL;
+        auto wrap = std::make_unique<Node>();
+        wrap->kind = NodeKind::Concat;
+        wrap->a = std::move(bol);
+        wrap->b = std::move(out.tree);
+        out.tree = std::move(wrap);
+    }
     return out;
 }
 

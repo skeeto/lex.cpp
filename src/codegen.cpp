@@ -257,6 +257,17 @@ std::string yy_lex_body_reject(const LexFile& f, const NFA& nfa,
     s << "    size_t yy_mb = 0;\n";
     s << "    for (;;) {\n";
     s << "        yy_text_unseal(YY_CALLPM);\n";
+    s << "        /* Buffer exhausted on a file-backed buffer? Auto-restart\n";
+    s << "         * from yyin. flex does the same. yyin may have been\n";
+    s << "         * reassigned by the user (typical: gengtype's parse_file).\n";
+    s << "         * Comparing FILE* pointers is unreliable -- fclose+fopen\n";
+    s << "         * often reuses the same slot -- so we retry the read\n";
+    s << "         * unconditionally and let yyrestart -> yy_slurp report 0\n";
+    s << "         * bytes when the underlying stream is truly at EOF. */\n";
+    s << "        if (yy_buf_pos >= yy_buf_end &&\n";
+    s << "            YY_CURRENT_BUFFER->yy_input_file && yyin) {\n";
+    s << "            yyrestart(yyin YY_CALLPM_C);\n";
+    s << "        }\n";
     s << "        if (yy_buf_pos >= yy_buf_end) {\n";
     if (f.options.array) {
         s << "            yytext[0] = 0;\n";
@@ -410,6 +421,17 @@ std::string yy_lex_body(const LexFile& f, const DFA& dfa, const NFA& nfa,
     }
     s << "    for (;;) {\n";
     s << "        yy_text_unseal(YY_CALLPM);\n";
+    s << "        /* Buffer exhausted on a file-backed buffer? Auto-restart\n";
+    s << "         * from yyin. flex does the same. yyin may have been\n";
+    s << "         * reassigned by the user (typical: gengtype's parse_file).\n";
+    s << "         * Comparing FILE* pointers is unreliable -- fclose+fopen\n";
+    s << "         * often reuses the same slot -- so we retry the read\n";
+    s << "         * unconditionally and let yyrestart -> yy_slurp report 0\n";
+    s << "         * bytes when the underlying stream is truly at EOF. */\n";
+    s << "        if (yy_buf_pos >= yy_buf_end &&\n";
+    s << "            YY_CURRENT_BUFFER->yy_input_file && yyin) {\n";
+    s << "            yyrestart(yyin YY_CALLPM_C);\n";
+    s << "        }\n";
     s << "        if (yy_buf_pos >= yy_buf_end) {\n";
     s << "            int yy_rule = -1;\n";
     if (f.options.array) {

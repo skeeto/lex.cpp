@@ -323,7 +323,9 @@ void yyrestart(FILE *new_input YY_DECLPM_C) {
     yyin = new_input;
     yy_text_active = 0;
     yy_text_save = 0;
-    yy_start = 0;
+    /* yy_start is intentionally preserved; flex's yyrestart leaves
+       it alone so user-set start conditions survive across file
+       transitions. */
 #if YY_ARRAY
     yytext[0] = 0;
 #else
