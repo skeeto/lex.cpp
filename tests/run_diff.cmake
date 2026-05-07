@@ -72,8 +72,13 @@ endfunction()
 
 function(_compile c_in bin_out)
     # -w to silence flex's old-style warnings; we only care about output.
+    # Modern clang errors on implicit function declarations and old-style
+    # K&R; flex 2.6.4's output uses both. Soften to warnings.
     execute_process(
         COMMAND ${CC_EXE} -std=c99 -O0 -g -w
+                -Wno-error=implicit-function-declaration
+                -Wno-error=int-conversion
+                -Wno-error=incompatible-pointer-types
                 ${c_in} -o ${bin_out}
         WORKING_DIRECTORY ${WORK_DIR}
         RESULT_VARIABLE rv

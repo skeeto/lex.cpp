@@ -1,1 +1,96 @@
-/* placeholder: filled in during Phase C (codegen). */
+/* lex.cpp runtime helpers. Embedded into the generated scanner. */
+
+char *yytext = 0;
+int   yyleng = 0;
+int   yylineno = 1;
+FILE *yyin  = 0;
+FILE *yyout = 0;
+
+static int    yy_start = 0;
+static int    yy_at_bol = 1;
+static char  *yy_buf = 0;
+static size_t yy_buf_size = 0;
+static size_t yy_buf_pos  = 0;
+static size_t yy_buf_end  = 0;
+static int    yy_done = 0;
+static char   yy_text_save = 0;
+static int    yy_text_active = 0;
+
+extern int yywrap(void);
+
+static void yy_grow(size_t want) {
+    if (yy_buf_size >= want) return;
+    size_t s = yy_buf_size ? yy_buf_size : 4096;
+    while (s < want) s *= 2;
+    char *p = (char*)realloc(yy_buf, s + 1);
+    if (!p) { fprintf(stderr, "lex: out of memory\n"); exit(2); }
+    yy_buf = p;
+    yy_buf_size = s;
+    yy_buf[yy_buf_end] = 0;
+}
+
+static void yy_refill(void) {
+    if (yy_done) return;
+    yy_grow(yy_buf_end + 4096);
+    size_t n = fread(yy_buf + yy_buf_end, 1, yy_buf_size - yy_buf_end, yyin);
+    yy_buf_end += n;
+    if (n == 0) yy_done = 1;
+    yy_buf[yy_buf_end] = 0;
+}
+
+static void yy_slurp(void) {
+    if (!yyin) yyin = stdin;
+    while (!yy_done) yy_refill();
+}
+
+static void yy_text_seal(void) {
+    if (yy_text_active) {
+        yy_text_save = yytext[yyleng];
+        yytext[yyleng] = 0;
+    }
+}
+static void yy_text_unseal(void) {
+    if (yy_text_active) {
+        yytext[yyleng] = yy_text_save;
+        yy_text_active = 0;
+    }
+}
+
+static void yy_unput(int c) {
+    yy_text_unseal();
+    if (yy_buf_pos == 0) {
+        yy_grow(yy_buf_end + 1);
+        memmove(yy_buf + 1, yy_buf, yy_buf_end);
+        yy_buf_end += 1;
+        yy_buf_pos = 1;
+    }
+    yy_buf[--yy_buf_pos] = (char)c;
+    yy_at_bol = (c == '\n') ? 1 : 0;
+}
+
+static int yy_input(void) {
+    yy_text_unseal();
+    if (yy_buf_pos >= yy_buf_end) yy_refill();
+    if (yy_buf_pos >= yy_buf_end) return 0; /* EOF */
+    unsigned char c = (unsigned char)yy_buf[yy_buf_pos++];
+    if (YY_TRACK_LINENO && c == '\n') yylineno++;
+    return (int)c;
+}
+
+static void yy_do_yyless(int n) {
+    /* Restore the saved byte then re-seal at the new length. */
+    yytext[yyleng] = yy_text_save;
+    yy_buf_pos -= (size_t)(yyleng - n);
+    yyleng = n;
+    yy_text_save = yytext[yyleng];
+    yytext[yyleng] = 0;
+    yy_at_bol = (n > 0 && yytext[n - 1] == '\n');
+}
+
+#define BEGIN(s)        ((void)(yy_start = (s)))
+#define YY_START        (yy_start)
+#define ECHO            (void)fwrite(yytext, 1, (size_t)yyleng, yyout)
+#define yyterminate()   return 0
+#define unput(c)        yy_unput((int)(unsigned char)(c))
+#define input()         yy_input()
+#define yyless(n)       yy_do_yyless((int)(n))

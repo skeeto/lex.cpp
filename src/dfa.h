@@ -9,14 +9,22 @@
 namespace lexcpp {
 
 struct DFAState {
-    std::array<std::int32_t, 256> next{};   // transition per byte; -1 = dead
-    std::int32_t accept_rule = -1;          // earliest rule id, -1 = none
+    // Transition table per byte; -1 means dead.
+    std::array<std::int32_t, 256> next{};
+    // Earliest accepting rule id whose pattern has no $ anchor; -1 if none.
+    std::int32_t accept_normal = -1;
+    // Earliest accepting rule id whose pattern ends with $ anchor; -1 if none.
+    std::int32_t accept_eol    = -1;
+};
+
+struct DFAStart {
+    std::int32_t normal = -1;
+    std::int32_t bol    = -1;
 };
 
 struct DFA {
     std::vector<DFAState> states;
-    std::int32_t start = 0;
-    std::int32_t start_bol = 0; // start state when at BOL (may equal start)
+    std::vector<DFAStart> cond_starts;        // per condition id
 };
 
 DFA build_dfa(const NFA& nfa);

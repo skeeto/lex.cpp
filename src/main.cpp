@@ -14,6 +14,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 namespace {
@@ -39,12 +40,13 @@ void print_usage(std::FILE* out) {
 
 struct Args {
     std::string output_path;
-    std::string prefix = "yy";
-    std::string input_path;     // empty == stdin
+    std::string prefix;
+    std::string input_path;
     bool to_stdout = false;
     bool case_insensitive = false;
     bool yylineno = false;
     bool nodefault = false;
+    bool prefix_set = false;
 };
 
 [[nodiscard]] bool starts_with(std::string_view s, std::string_view p) {
@@ -76,8 +78,10 @@ int parse_args(int argc, char** argv, Args& out, lexcpp::Diagnostics& diag) {
         } else if (a == "-P") {
             if (++i >= argc) { diag.error({}, "-P requires an argument"); return 2; }
             out.prefix = argv[i];
+            out.prefix_set = true;
         } else if (starts_with(a, "--prefix=")) {
             out.prefix = std::string(a.substr(9));
+            out.prefix_set = true;
         } else if (a == "--") {
             if (++i < argc) out.input_path = argv[i];
         } else if (!a.empty() && a[0] == '-' && a != "-") {
@@ -124,17 +128,76 @@ int main(int argc, char** argv) {
         source = slurp(f);
     }
 
-    auto file = lexcpp::parse_lex_file(source_label, source, diag);
-    if (!file || !diag.ok()) return 1;
+    auto file_opt = lexcpp::parse_lex_file(source_label, source, diag);
+    if (!file_opt || !diag.ok()) return 1;
+    auto& file = *file_opt;
 
-    lexcpp::NFA nfa;
-    for (std::size_t i = 0; i < file->rules.size(); ++i) {
-        // Phase C: parse pattern, build NFA, accumulate.
-        (void)i;
+    // CLI overrides %option.
+    if (args.case_insensitive) file.options.case_insensitive = true;
+    if (args.yylineno)         file.options.yylineno = true;
+    if (args.nodefault)        file.options.nodefault = true;
+    if (args.prefix_set)       file.options.prefix = args.prefix;
+
+    // Build NFA.
+    std::vector<std::string> cond_names{"INITIAL"};
+    std::vector<std::uint8_t> cond_excl{0};
+    std::unordered_map<std::string, std::int32_t> cond_id{{"INITIAL", 0}};
+    for (const auto& sc : file.conds) {
+        cond_id[sc.name] = static_cast<std::int32_t>(cond_names.size());
+        cond_names.push_back(sc.name);
+        cond_excl.push_back(sc.exclusive ? 1 : 0);
     }
 
+    lexcpp::NFA nfa;
+    lexcpp::init_nfa(nfa, cond_names, cond_excl);
+
+    // Macro resolver: returns the raw definition string.
+    std::unordered_map<std::string, std::string> defs;
+    for (const auto& [k, v] : file.defs) defs[k] = v;
+    auto resolver = [&](std::string_view name) -> std::optional<std::string> {
+        auto it = defs.find(std::string(name));
+        if (it == defs.end()) return std::nullopt;
+        // Wrap in parens to preserve precedence.
+        return "(" + it->second + ")";
+    };
+
+    std::int32_t nfa_rule_id = 0;
+    for (std::size_t i = 0; i < file.rules.size(); ++i) {
+        auto& r = file.rules[i];
+        lexcpp::RuleSites sites;
+        sites.any_state = r.any_state;
+        for (const auto& cn : r.conds) {
+            auto it = cond_id.find(cn);
+            if (it == cond_id.end()) {
+                diag.error(r.loc, "unknown start condition: " + cn);
+                return 1;
+            }
+            sites.conds.push_back(it->second);
+        }
+
+        if (r.eof) {
+            lexcpp::add_eof_rule(nfa, static_cast<std::int32_t>(i), sites);
+            continue;
+        }
+
+        lexcpp::SourceLoc rl = r.loc;
+        auto tree = lexcpp::parse_regex(r.pattern, resolver,
+                                        file.options.case_insensitive,
+                                        diag, rl);
+        if (!tree) {
+            diag.error(rl, "failed to parse pattern: " + r.pattern);
+            return 1;
+        }
+        lexcpp::add_rule_to_nfa(nfa, tree.get(), nfa_rule_id++, sites);
+    }
+    if (!diag.ok()) return 1;
+
+    // Build DFA.
     lexcpp::DFA dfa = lexcpp::build_dfa(nfa);
-    auto out = lexcpp::emit_c({&*file, &dfa});
+
+    // Codegen.
+    lexcpp::CodegenInput cg{&file, &nfa, &dfa};
+    auto out = lexcpp::emit_c(cg);
 
     if (args.to_stdout) {
         std::fwrite(out.data(), 1, out.size(), stdout);
