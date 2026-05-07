@@ -57,11 +57,15 @@ cmake --build build-fuzz -j
 | `src/regex.{hpp,cpp}` | parses one regex pattern into a `Node` tree (and `parse_pattern` for `r/s`) |
 | `src/nfa.{hpp,cpp}` | Thompson construction; per-rule BOL/EOL/trail flags |
 | `src/dfa.{hpp,cpp}` | subset construction; each `DFAState` has `accept_normal`, `accept_eol`, `accept_list` |
-| `src/codegen.{hpp,cpp}` | emits the C scanner: prelude, tables, runtime, `yylex` body, epilogue |
+| `src/eclass.{hpp,cpp}` | byte-equivalence-class refinement (computed from NFA edges, before subset construction) |
+| `src/dfa.{hpp,cpp}` | subset construction; `DFAState` has `accept_normal/accept_eol/accept_list/boundary_rules`; also `compress_dfa` for comb packing |
+| `src/codegen.{hpp,cpp}` | emits the C scanner: prelude, tables, runtime, `yylex` body, epilogue. Per-mode tables: `-f` (dense 256), `-Cfe` (dense nclasses), `-Cem` (yy_base/def/nxt/chk + yy_meta) |
+| `src/tables.{hpp,cpp}` | binary table-file serialiser used by `--tables-file` (network-order; magic 0xF13C57B1) |
 | `runtime/runtime.c.in` | the C runtime helpers (buffers, BEGIN/ECHO/yyless/unput/input, yymore, push/pop state, init/destroy in reentrant mode). Embedded as `kRuntimeTemplate` via `cmake/EmbedFile.cmake`. |
+| `lib/{yywrap,main}.c` | tiny static archive (`liblex.a`) with default `yywrap` and `main`; pulled in only when not user-provided. Each function in its own TU so the linker doesn't drag both. |
 
 Pipeline: `parse_lex_file → parse_pattern (per rule) → init_nfa →
-add_rule_to_nfa → build_dfa → emit_c [+ emit_h]`.
+add_rule_to_nfa → compute_eclasses → build_dfa → [compress_dfa] → emit_c [+ emit_h] [+ write_tables_file]`.
 
 ## Conventions
 
@@ -166,17 +170,85 @@ The order in the emitted `.c` is fixed and non-trivial:
 4. **User `%{ ... %}` block** (so it can refer to those typedefs)
 5. Prefix `#define`s (yy* → <prefix>*)
 6. Condition `#define`s (`INITIAL = 0`, `STR = 1`, …)
-7. `YY_TRACK_LINENO`, `YY_EXTRA_TYPE`
-8. **Tables** (`yy_nxt`, `yy_accept_*`, `yy_cond_*`, `yy_rule_trail_len`,
-   optionally `yy_accept_off/pool`)
+7. `YY_TRACK_LINENO`, `YY_ARRAY`, `YY_EXTRA_TYPE`
+8. **Tables** (`yy_ec`, then either `yy_nxt[s][cls]` *or*
+   `yy_base/yy_def/yy_nxt/yy_chk` + `yy_meta`, plus `yy_accept_*`,
+   `yy_cond_*`, `yy_rule_trail_len`, optionally `yy_accept_off/pool` and
+   `yy_boundary_off/pool`)
 9. Embedded **runtime helpers** from `runtime.c.in`
-10. `yylex` body (with action dispatch)
-11. `yywrap` if `noyywrap`
-12. **User section 3** verbatim
+10. `YY_TRANSITION` macro (per-mode lookup)
+11. `yylex` body (with action dispatch)
+12. Optional `yytables_fload` when `--tables-file` is set
+13. `yywrap` if `noyywrap`
+14. **User section 3** verbatim
 
-Steps 4 and 12 get `#line` brackets when `emit_line_directives` is on. Don't
+Steps 4 and 14 get `#line` brackets when `emit_line_directives` is on. Don't
 reorder these — moving the user prologue after the tables breaks any user code
 that defines `YYSTYPE` / `YY_USER_ACTION` / `YY_DECL`.
+
+### Compression menu
+
+`-f` / `-Cfe` / `-Cem` (the default) feed `compress_mode` into
+`CodegenInput`. The lookup macro `YY_TRANSITION(s, b)` is emitted
+differently per mode; both `yy_lex_body` and `yy_lex_body_reject`
+unconditionally call it, so adding a new mode only touches the macro
+emission and the table emission.
+
+Naming caveat: there's a *local* variable in the yylex body called `yy_mb`
+("match base"). The original was `yy_base`, but it collided with the new
+`yy_base[]` table when comb compression landed. If you add another
+top-level table, watch for similar collisions.
+
+### `--tables-file` runtime loader
+
+When `--tables-file` is set, codegen drops `const` from every table and
+emits `int yytables_fload(const char *path)`. The reader walks our
+network-order binary (`tables.cpp::serialise_tables`), validates magic +
+dimensions, then `fread`s each table back into the static arrays.
+
+If you add a new table to codegen.cpp, you must:
+1. Append it to `tables.cpp::serialise_tables` in the same order codegen
+   emits it.
+2. Append the matching `yy_read_int_array(...)` call in the codegen-emitted
+   `yytables_fload` body.
+
+The two writers/readers are coupled by *order*, not by name. Mismatch =
+silent garbage at runtime. Keep the order documented in `tables.hpp`'s
+header comment.
+
+### `%option array`
+
+Selects a fixed `char yytext[YYLMAX]` instead of the default `char *yytext`.
+The yylex body has three places that previously did `yytext = yy_buf +
+something` and now branch on `f.options.array`:
+- match path: `memcpy` into yytext, NUL-terminate, truncate at YYLMAX-1.
+- EOF path:   `yytext[0] = 0;`.
+- yymore path: skipped under array (yymore + array isn't defined by flex).
+
+The runtime's `yyguts_t::yytext_r` is `char[YYLMAX]` under `YY_ARRAY`,
+`char *` otherwise. Same `yytext` macro works in both cases (array decays
+to pointer when read; only assignment differs).
+
+### Variable trailing context
+
+`r/s` with variable-length `s` works via NFA boundary markers. A
+`NodeKind::TrailBoundary` produces an NFA state with `is_boundary = true`;
+`add_rule_to_nfa` collects all such states per rule into
+`nfa.rule_boundary_states`. DFA's `accept_for` records, per state, which
+rules' boundary markers are in its NFA-set. The runtime maintains
+`yy_boundary_pos[NRULES]` during the scan and rewinds `yy_len` to the
+boundary on accept.
+
+A `dangerous trailing context` warning fires when both `r` and `s` have
+variable length (`fixed_length(r) < 0` is the trigger).
+
+### Phase 11+ artefacts
+
+Iteration 1's plan listed phases A–F; Iteration 2 added 0–10; Iteration 3
+added 11–16; Iteration 3+ (this round) added 17–21. The plan file
+(`/root/.claude/plans/i-want-a-unix-glimmering-elephant.md`) tracks
+intent. Don't trust commit-message phase numbers as a definitive index;
+they're snapshots in time.
 
 ## How to extend
 
