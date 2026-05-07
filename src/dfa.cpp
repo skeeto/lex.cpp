@@ -295,12 +295,12 @@ CompressedDFA compress_dfa(const DFA& dfa) {
         place_at(best, se);
     }
 
-    // Pad pool so that any state-class lookup is in-bounds (guards the
-    // runtime against reading off the end when a state with empty
-    // exception list reuses base 0 against a high class id).
-    std::size_t needed = c.yy_chk.size();
-    if (needed < static_cast<std::size_t>(nclasses))
-        needed = static_cast<std::size_t>(nclasses);
+    // Pad the pool so that every state's full class range lookup stays
+    // in-bounds: yy_base[s] + nclasses - 1 must be < pool_size for any s.
+    std::int32_t max_base = 0;
+    for (auto v : c.yy_base) if (v > max_base) max_base = v;
+    std::size_t needed = static_cast<std::size_t>(max_base + nclasses);
+    if (needed < c.yy_chk.size()) needed = c.yy_chk.size();
     c.yy_chk.resize(needed, -1);
     c.yy_nxt.resize(needed, 0);
     c.pool_size = static_cast<std::int32_t>(needed);
