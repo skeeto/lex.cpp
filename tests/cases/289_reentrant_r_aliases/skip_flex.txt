@@ -1,0 +1,2 @@
+stock flex doesn't emit `_r`-suffixed accessor aliases (yyget_text_r,
+yyset_lineno_r, etc.); these are a lex.cpp extension. Lex-only.

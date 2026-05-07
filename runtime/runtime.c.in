@@ -478,4 +478,18 @@ void *yyget_extra(yyscan_t s){ return ((yyguts_t*)s)->yyextra_r; }
 void  yyset_extra(void *v, yyscan_t s){ ((yyguts_t*)s)->yyextra_r = v; }
 int   yyget_debug(yyscan_t s){ (void)s; return 0; }
 void  yyset_debug(int v, yyscan_t s){ (void)v; (void)s; }
+
+/* `_r`-suffixed aliases. lex.cpp extension; some downstream code
+   (older bison-bridge bindings) looks the accessors up by these
+   names. Forwarders, no behavioural difference. */
+static inline char *yyget_text_r(yyscan_t s) { return yyget_text(s); }
+static inline int   yyget_leng_r(yyscan_t s) { return yyget_leng(s); }
+static inline int   yyget_lineno_r(yyscan_t s) { return yyget_lineno(s); }
+static inline void  yyset_lineno_r(int v, yyscan_t s) { yyset_lineno(v, s); }
+static inline FILE *yyget_in_r(yyscan_t s) { return yyget_in(s); }
+static inline void  yyset_in_r(FILE *f, yyscan_t s) { yyset_in(f, s); }
+static inline FILE *yyget_out_r(yyscan_t s) { return yyget_out(s); }
+static inline void  yyset_out_r(FILE *f, yyscan_t s) { yyset_out(f, s); }
+static inline void *yyget_extra_r(yyscan_t s) { return yyget_extra(s); }
+static inline void  yyset_extra_r(void *v, yyscan_t s) { yyset_extra(v, s); }
 #endif
