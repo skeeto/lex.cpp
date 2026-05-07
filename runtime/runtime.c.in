@@ -40,6 +40,8 @@ struct yyguts_t {
     char             yy_text_save_r;
     int              yy_text_active_r;
     int              yy_init_done_r;
+    int              yy_more_flag_r;
+    int              yy_more_offset_r;
     void            *yyextra_r;
     void            *yylval_r;     /* bison-bridge: YYSTYPE*  */
     void            *yylloc_r;     /* bison-locations: YYLTYPE* */
@@ -97,6 +99,8 @@ FILE *yyout    = 0;
 #define yy_state_stack_max   (YY_G->yy_state_stack_max_r)
 #define yy_state_stack_top   (YY_G->yy_state_stack_top_r)
 #define yy_init_done          (YY_G->yy_init_done_r)
+#define yy_more_flag          (YY_G->yy_more_flag_r)
+#define yy_more_offset        (YY_G->yy_more_offset_r)
 
 #define YY_CURRENT_BUFFER \
     (yy_buffer_stack ? yy_buffer_stack[yy_buffer_stack_top] : (YY_BUFFER_STATE)0)
@@ -381,6 +385,7 @@ int yy_top_state(YY_DECLPM) {
 #define yy_at_bol    (YY_CURRENT_BUFFER->yyb_at_bol)
 #define yy_done      (YY_CURRENT_BUFFER->yyb_done)
 
+#define yymore()        ((void)(yy_more_flag = 1))
 #define BEGIN(s)        ((void)(yy_start = (s)))
 #define YY_START        (yy_start)
 #define ECHO            (void)fwrite(yytext, 1, (size_t)yyleng, yyout)

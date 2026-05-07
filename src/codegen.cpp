@@ -465,11 +465,16 @@ std::string yy_lex_body(const LexFile& f, const DFA& dfa, const NFA& nfa,
     s << "                yy_len -= (size_t)yy_trail;\n";
     s << "            }\n";
     s << "        }\n";
+    s << "        yy_buf_pos = yy_base + yy_len;\n";
+    s << "        if (yy_more_offset > 0) {\n";
+    s << "            yytext = yy_buf + yy_base - (size_t)yy_more_offset;\n";
+    s << "            yy_len += (size_t)yy_more_offset;\n";
+    s << "        }\n";
+    s << "        yy_more_flag = 0;\n";
     s << "        yyleng = (int)yy_len;\n";
     s << "        yy_text_save = yytext[yy_len];\n";
     s << "        yytext[yy_len] = 0;\n";
     s << "        yy_text_active = 1;\n";
-    s << "        yy_buf_pos = yy_base + yy_len;\n";
     if (f.options.yylineno) {
         s << "        for (size_t yy_i = 0; yy_i < yy_len; ++yy_i)\n";
         s << "            if (yytext[yy_i] == '\\n') yylineno++;\n";
@@ -490,7 +495,8 @@ std::string yy_lex_body(const LexFile& f, const DFA& dfa, const NFA& nfa,
         }
         s << "        " << indented;
     }
-    s << "\n    }\n";
+    s << "\n        yy_more_offset = yy_more_flag ? yyleng : 0;\n";
+    s << "    }\n";
     s << "}\n";
     return s.str();
 }
