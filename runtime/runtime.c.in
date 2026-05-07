@@ -1,106 +1,286 @@
 /* lex.cpp runtime helpers. Embedded into the generated scanner. */
 
-char *yytext = 0;
-int   yyleng = 0;
-int   yylineno = 1;
-FILE *yyin  = 0;
-FILE *yyout = 0;
+#define YY_BUF_SIZE 16384
 
-static int    yy_start = 0;
-static int    yy_at_bol = 1;
-static char  *yy_buf = 0;
-static size_t yy_buf_size = 0;
-static size_t yy_buf_pos  = 0;
-static size_t yy_buf_end  = 0;
-static int    yy_done = 0;
-static char   yy_text_save = 0;
-static int    yy_text_active = 0;
+typedef struct yy_buffer_state {
+    FILE   *yy_input_file;     /* NULL for in-memory string buffers */
+    char   *yy_buf;            /* size yy_buf_size+2; ends with two NULs */
+    size_t  yy_buf_size;       /* byte capacity (excluding the two-NUL guard) */
+    size_t  yy_buf_pos;        /* next byte to read */
+    size_t  yy_buf_end;        /* count of valid bytes */
+    int     yy_at_bol;
+    int     yy_done;           /* exhausted yy_input_file (or in-memory exhausted) */
+    int     yy_is_our_buffer;  /* free yy_buf on delete? */
+    int     yy_is_interactive; /* unused -- accepted for compat */
+} yy_buffer_state, *YY_BUFFER_STATE;
+
+static YY_BUFFER_STATE *yy_buffer_stack    = 0;
+static size_t           yy_buffer_stack_max = 0;
+static size_t           yy_buffer_stack_top = 0;
+
+#define YY_CURRENT_BUFFER \
+    (yy_buffer_stack ? yy_buffer_stack[yy_buffer_stack_top] : (YY_BUFFER_STATE)0)
+#define YY_CURRENT_BUFFER_LVALUE  yy_buffer_stack[yy_buffer_stack_top]
+
+char *yytext   = 0;
+int   yyleng   = 0;
+int   yylineno = 1;
+FILE *yyin     = 0;
+FILE *yyout    = 0;
+
+static int  yy_start        = 0;
+static char yy_text_save    = 0;
+static int  yy_text_active  = 0;
 
 extern int yywrap(void);
 
-static void yy_grow(size_t want) {
-    if (yy_buf_size >= want) return;
-    size_t s = yy_buf_size ? yy_buf_size : 4096;
-    while (s < want) s *= 2;
-    char *p = (char*)realloc(yy_buf, s + 1);
+/* ---- buffer-stack management --------------------------------------- */
+
+static void yyensure_buffer_stack(void) {
+    if (!yy_buffer_stack) {
+        yy_buffer_stack_max = 1;
+        yy_buffer_stack = (YY_BUFFER_STATE*)
+            calloc(yy_buffer_stack_max, sizeof(YY_BUFFER_STATE));
+        if (!yy_buffer_stack) {
+            fprintf(stderr, "lex: out of memory\n"); exit(2);
+        }
+        yy_buffer_stack_top = 0;
+    }
+}
+
+static void yy_grow_stack(void) {
+    size_t new_max = yy_buffer_stack_max ? yy_buffer_stack_max * 2 : 4;
+    YY_BUFFER_STATE *p = (YY_BUFFER_STATE*)
+        realloc(yy_buffer_stack, new_max * sizeof(YY_BUFFER_STATE));
     if (!p) { fprintf(stderr, "lex: out of memory\n"); exit(2); }
-    yy_buf = p;
-    yy_buf_size = s;
-    yy_buf[yy_buf_end] = 0;
+    for (size_t i = yy_buffer_stack_max; i < new_max; ++i) p[i] = 0;
+    yy_buffer_stack = p;
+    yy_buffer_stack_max = new_max;
+}
+
+YY_BUFFER_STATE yy_create_buffer(FILE *file, int size) {
+    YY_BUFFER_STATE b = (YY_BUFFER_STATE)calloc(1, sizeof(*b));
+    if (!b) return 0;
+    b->yy_buf_size = (size > 0) ? (size_t)size : YY_BUF_SIZE;
+    b->yy_buf = (char*)malloc(b->yy_buf_size + 2);
+    if (!b->yy_buf) { free(b); return 0; }
+    b->yy_buf[0] = 0;
+    b->yy_buf[1] = 0;
+    b->yy_input_file     = file;
+    b->yy_at_bol         = 1;
+    b->yy_done           = 0;
+    b->yy_buf_pos        = 0;
+    b->yy_buf_end        = 0;
+    b->yy_is_our_buffer  = 1;
+    return b;
+}
+
+void yy_delete_buffer(YY_BUFFER_STATE b) {
+    if (!b) return;
+    if (b->yy_is_our_buffer) free(b->yy_buf);
+    free(b);
+}
+
+void yy_flush_buffer(YY_BUFFER_STATE b) {
+    if (!b) return;
+    b->yy_buf_pos = 0;
+    b->yy_buf_end = 0;
+    b->yy_done    = (b->yy_input_file == 0) ? 1 : 0;
+    b->yy_at_bol  = 1;
+    if (b->yy_buf) {
+        b->yy_buf[0] = 0;
+        b->yy_buf[1] = 0;
+    }
+}
+
+void yy_switch_to_buffer(YY_BUFFER_STATE b) {
+    yyensure_buffer_stack();
+    if (YY_CURRENT_BUFFER == b) return;
+    YY_CURRENT_BUFFER_LVALUE = b;
+    if (b) yyin = b->yy_input_file;
+}
+
+void yypush_buffer_state(YY_BUFFER_STATE b) {
+    yyensure_buffer_stack();
+    if (YY_CURRENT_BUFFER) {
+        ++yy_buffer_stack_top;
+        if (yy_buffer_stack_top >= yy_buffer_stack_max) yy_grow_stack();
+    }
+    YY_CURRENT_BUFFER_LVALUE = b;
+    if (b) yyin = b->yy_input_file;
+}
+
+void yypop_buffer_state(void) {
+    if (!yy_buffer_stack) return;
+    yy_delete_buffer(YY_CURRENT_BUFFER);
+    YY_CURRENT_BUFFER_LVALUE = 0;
+    if (yy_buffer_stack_top > 0) {
+        --yy_buffer_stack_top;
+        if (YY_CURRENT_BUFFER) yyin = YY_CURRENT_BUFFER->yy_input_file;
+    }
+}
+
+/* ---- scan-from-memory entry points --------------------------------- */
+
+YY_BUFFER_STATE yy_scan_buffer(char *base, size_t size) {
+    /* User must guarantee two trailing NUL bytes. */
+    if (size < 2 || base[size - 2] != 0 || base[size - 1] != 0) return 0;
+    YY_BUFFER_STATE b = (YY_BUFFER_STATE)calloc(1, sizeof(*b));
+    if (!b) return 0;
+    b->yy_buf            = base;
+    b->yy_buf_size       = size - 2;
+    b->yy_buf_end        = size - 2;
+    b->yy_buf_pos        = 0;
+    b->yy_at_bol         = 1;
+    b->yy_done           = 1;          /* nothing more to read */
+    b->yy_is_our_buffer  = 0;
+    yypush_buffer_state(b);
+    return b;
+}
+
+YY_BUFFER_STATE yy_scan_bytes(const char *bytes, int len) {
+    if (len < 0) len = 0;
+    size_t n = (size_t)len;
+    char *buf = (char*)malloc(n + 2);
+    if (!buf) return 0;
+    if (n) memcpy(buf, bytes, n);
+    buf[n] = 0;
+    buf[n + 1] = 0;
+    YY_BUFFER_STATE b = (YY_BUFFER_STATE)calloc(1, sizeof(*b));
+    if (!b) { free(buf); return 0; }
+    b->yy_buf            = buf;
+    b->yy_buf_size       = n;
+    b->yy_buf_end        = n;
+    b->yy_buf_pos        = 0;
+    b->yy_at_bol         = 1;
+    b->yy_done           = 1;
+    b->yy_is_our_buffer  = 1;
+    yypush_buffer_state(b);
+    return b;
+}
+
+YY_BUFFER_STATE yy_scan_string(const char *s) {
+    return yy_scan_bytes(s, s ? (int)strlen(s) : 0);
+}
+
+/* ---- buffer-aware low-level helpers -------------------------------- */
+
+static void yy_buf_grow(YY_BUFFER_STATE b, size_t want) {
+    if (b->yy_buf_size >= want) return;
+    size_t s = b->yy_buf_size ? b->yy_buf_size : 4096;
+    while (s < want) s *= 2;
+    char *p = (char*)realloc(b->yy_buf, s + 2);
+    if (!p) { fprintf(stderr, "lex: out of memory\n"); exit(2); }
+    b->yy_buf = p;
+    b->yy_buf_size = s;
+    b->yy_buf[b->yy_buf_end]     = 0;
+    b->yy_buf[b->yy_buf_end + 1] = 0;
 }
 
 static void yy_refill(void) {
-    if (yy_done) return;
-    yy_grow(yy_buf_end + 4096);
-    size_t n = fread(yy_buf + yy_buf_end, 1, yy_buf_size - yy_buf_end, yyin);
-    yy_buf_end += n;
-    if (n == 0) yy_done = 1;
-    yy_buf[yy_buf_end] = 0;
+    YY_BUFFER_STATE b = YY_CURRENT_BUFFER;
+    if (!b || b->yy_done || !b->yy_input_file) return;
+    yy_buf_grow(b, b->yy_buf_end + 4096);
+    size_t n = fread(b->yy_buf + b->yy_buf_end, 1,
+                     b->yy_buf_size - b->yy_buf_end, b->yy_input_file);
+    b->yy_buf_end += n;
+    if (n == 0) b->yy_done = 1;
+    b->yy_buf[b->yy_buf_end]     = 0;
+    b->yy_buf[b->yy_buf_end + 1] = 0;
 }
 
 static void yy_slurp(void) {
-    if (!yyin) yyin = stdin;
-    while (!yy_done) yy_refill();
+    YY_BUFFER_STATE b = YY_CURRENT_BUFFER;
+    if (!b) return;
+    while (!b->yy_done) yy_refill();
+}
+
+static void yy_init_default_buffer(void) {
+    yyensure_buffer_stack();
+    if (!YY_CURRENT_BUFFER) {
+        if (!yyin) yyin = stdin;
+        YY_CURRENT_BUFFER_LVALUE = yy_create_buffer(yyin, YY_BUF_SIZE);
+        yy_slurp();
+    }
 }
 
 void yyrestart(FILE *new_input) {
-    if (yy_buf) { free(yy_buf); yy_buf = 0; }
-    yy_buf_size = 0;
-    yy_buf_pos  = 0;
-    yy_buf_end  = 0;
-    yy_done = 0;
+    yyensure_buffer_stack();
+    if (!YY_CURRENT_BUFFER) {
+        YY_CURRENT_BUFFER_LVALUE = yy_create_buffer(new_input, YY_BUF_SIZE);
+    } else {
+        YY_CURRENT_BUFFER->yy_input_file = new_input;
+        yy_flush_buffer(YY_CURRENT_BUFFER);
+    }
+    yyin = new_input;
     yy_text_active = 0;
     yy_text_save = 0;
+    yy_start = 0;
     yytext = 0;
     yyleng = 0;
-    yy_at_bol = 1;
-    yy_start = 0;
-    yyin = new_input;
+    yy_slurp();
 }
 
+/* ---- yytext sealing ------------------------------------------------ */
+
 static void yy_text_seal(void) {
-    if (yy_text_active) {
+    if (yy_text_active && yytext) {
         yy_text_save = yytext[yyleng];
         yytext[yyleng] = 0;
     }
 }
 static void yy_text_unseal(void) {
-    if (yy_text_active) {
+    if (yy_text_active && yytext) {
         yytext[yyleng] = yy_text_save;
         yy_text_active = 0;
     }
 }
 
+/* ---- unput / input / yyless --------------------------------------- */
+
 static void yy_unput(int c) {
     yy_text_unseal();
-    if (yy_buf_pos == 0) {
-        yy_grow(yy_buf_end + 1);
-        memmove(yy_buf + 1, yy_buf, yy_buf_end);
-        yy_buf_end += 1;
-        yy_buf_pos = 1;
+    YY_BUFFER_STATE b = YY_CURRENT_BUFFER;
+    if (!b) return;
+    if (b->yy_buf_pos == 0) {
+        yy_buf_grow(b, b->yy_buf_end + 1);
+        memmove(b->yy_buf + 1, b->yy_buf, b->yy_buf_end);
+        b->yy_buf_end += 1;
+        b->yy_buf_pos = 1;
     }
-    yy_buf[--yy_buf_pos] = (char)c;
-    yy_at_bol = (c == '\n') ? 1 : 0;
+    b->yy_buf[--b->yy_buf_pos] = (char)c;
+    b->yy_at_bol = (c == '\n') ? 1 : 0;
 }
 
 static int yy_input(void) {
     yy_text_unseal();
-    if (yy_buf_pos >= yy_buf_end) yy_refill();
-    if (yy_buf_pos >= yy_buf_end) return 0; /* EOF */
-    unsigned char c = (unsigned char)yy_buf[yy_buf_pos++];
+    YY_BUFFER_STATE b = YY_CURRENT_BUFFER;
+    if (!b) return 0;
+    if (b->yy_buf_pos >= b->yy_buf_end) yy_refill();
+    if (b->yy_buf_pos >= b->yy_buf_end) return 0; /* EOF */
+    unsigned char c = (unsigned char)b->yy_buf[b->yy_buf_pos++];
     if (YY_TRACK_LINENO && c == '\n') yylineno++;
     return (int)c;
 }
 
 static void yy_do_yyless(int n) {
-    /* Restore the saved byte then re-seal at the new length. */
+    YY_BUFFER_STATE b = YY_CURRENT_BUFFER;
     yytext[yyleng] = yy_text_save;
-    yy_buf_pos -= (size_t)(yyleng - n);
+    b->yy_buf_pos -= (size_t)(yyleng - n);
     yyleng = n;
     yy_text_save = yytext[yyleng];
     yytext[yyleng] = 0;
-    yy_at_bol = (n > 0 && yytext[n - 1] == '\n');
+    b->yy_at_bol = (n > 0 && yytext[n - 1] == '\n');
 }
+
+/* The codegen-emitted yylex body refers to these as bare names; expose
+   them as macros that route through YY_CURRENT_BUFFER. */
+#define yy_buf       (YY_CURRENT_BUFFER->yy_buf)
+#define yy_buf_size  (YY_CURRENT_BUFFER->yy_buf_size)
+#define yy_buf_pos   (YY_CURRENT_BUFFER->yy_buf_pos)
+#define yy_buf_end   (YY_CURRENT_BUFFER->yy_buf_end)
+#define yy_at_bol    (YY_CURRENT_BUFFER->yy_at_bol)
+#define yy_done      (YY_CURRENT_BUFFER->yy_done)
 
 #define BEGIN(s)        ((void)(yy_start = (s)))
 #define YY_START        (yy_start)

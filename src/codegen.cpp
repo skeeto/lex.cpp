@@ -179,7 +179,7 @@ std::string yy_lex_body(const LexFile& f, const DFA& dfa, const NFA& nfa,
     s << "int yylex(void) {\n";
     s << "    if (!yyin) yyin = stdin;\n";
     s << "    if (!yyout) yyout = stdout;\n";
-    s << "    if (!yy_buf) yy_slurp();\n";
+    s << "    yy_init_default_buffer();\n";
     s << "    for (;;) {\n";
     s << "        yy_text_unseal();\n";
     s << "        if (yy_buf_pos >= yy_buf_end) {\n";
