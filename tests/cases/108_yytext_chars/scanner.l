@@ -1,0 +1,7 @@
+%option noyywrap
+%%
+"\""        printf("[Q]");
+"//"        printf("[SL]");
+.|\n        ECHO;
+%%
+int main(void){ yylex(); return 0; }

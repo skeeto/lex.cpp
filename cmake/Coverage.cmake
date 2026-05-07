@@ -18,20 +18,12 @@ if(LEXCPP_COVERAGE)
     find_program(LLVM_PROFDATA llvm-profdata)
 
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND LLVM_COV AND LLVM_PROFDATA)
+        configure_file(
+            ${CMAKE_SOURCE_DIR}/cmake/run_coverage.cmake.in
+            ${CMAKE_BINARY_DIR}/run_coverage.cmake
+            @ONLY)
         add_custom_target(coverage
-            COMMAND ${CMAKE_COMMAND} -E rm -rf coverage
-            COMMAND ${CMAKE_COMMAND} -E make_directory coverage
-            COMMAND ${CMAKE_COMMAND} -E env LLVM_PROFILE_FILE=${CMAKE_BINARY_DIR}/coverage/lex-%p.profraw
-                    ${CMAKE_CTEST_COMMAND} --output-on-failure
-            COMMAND ${LLVM_PROFDATA} merge -sparse
-                    ${CMAKE_BINARY_DIR}/coverage/lex-*.profraw
-                    -o ${CMAKE_BINARY_DIR}/coverage/lex.profdata
-            COMMAND ${LLVM_COV} report $<TARGET_FILE:lex>
-                    -instr-profile=${CMAKE_BINARY_DIR}/coverage/lex.profdata
-            COMMAND ${LLVM_COV} show $<TARGET_FILE:lex>
-                    -instr-profile=${CMAKE_BINARY_DIR}/coverage/lex.profdata
-                    -format=html -output-dir=${CMAKE_BINARY_DIR}/coverage/html
-                    -show-line-counts-or-regions
+            COMMAND ${CMAKE_COMMAND} -P ${CMAKE_BINARY_DIR}/run_coverage.cmake
             WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
             VERBATIM)
     elseif(GCOVR_EXE)

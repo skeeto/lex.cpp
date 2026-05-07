@@ -203,12 +203,16 @@ struct Parser {
         }
     }
 
+    static bool is_in(std::string_view k, std::initializer_list<std::string_view> set) {
+        for (auto s : set) if (k == s) return true;
+        return false;
+    }
+
     void apply_option(std::string tok) {
         auto split = tok.find('=');
         std::string key = (split == std::string::npos) ? tok : tok.substr(0, split);
         std::string val = (split == std::string::npos) ? std::string{}
                                                        : tok.substr(split + 1);
-        // Strip quotes around val.
         if (val.size() >= 2 && val.front() == '"' && val.back() == '"')
             val = val.substr(1, val.size() - 2);
 
@@ -216,58 +220,44 @@ struct Parser {
         else if (key == "yywrap")                out.options.noyywrap = false;
         else if (key == "yylineno")              out.options.yylineno = true;
         else if (key == "noyylineno")            out.options.yylineno = false;
-        else if (key == "case-insensitive" ||
-                 key == "caseless"        ||
-                 key == "i")                     out.options.case_insensitive = true;
-        else if (key == "case-sensitive" ||
-                 key == "nocaseless")            out.options.case_insensitive = false;
-        else if (key == "nodefault" || key == "s")
-                                                 out.options.nodefault = true;
-        else if (key == "default")               out.options.nodefault = false;
-        else if (key == "debug" || key == "d")   out.options.debug = true;
-        else if (key == "nodebug")               out.options.debug = false;
-        else if (key == "prefix")                out.options.prefix = val;
-        // Silently accept (without effect) options that don't change
-        // codegen visibly for our scope: 8bit, batch, interactive, ...
-        else if (key == "8bit" || key == "no8bit" ||
-                 key == "interactive" || key == "nointeractive" ||
-                 key == "batch" || key == "nobatch" ||
-                 key == "warn"  || key == "nowarn"  ||
-                 key == "ecs" || key == "noecs" ||
-                 key == "meta-ecs" || key == "nometa-ecs" ||
-                 key == "stack" || key == "nostack" ||
-                 key == "always-interactive" ||
-                 key == "fast" || key == "full" ||
-                 key == "main" || key == "nomain" ||
-                 key == "yymore" || key == "noyymore" ||
-                 key == "input" || key == "noinput" ||
-                 key == "unput" || key == "nounput" ||
-                 key == "yyalloc" || key == "noyyalloc" ||
-                 key == "yyfree" || key == "noyyfree" ||
-                 key == "yyrealloc" || key == "noyyrealloc" ||
-                 key == "yywrap" || key == "noyywrap" ||
-                 key == "yy_scan_buffer" ||
-                 key == "yy_scan_bytes"  ||
-                 key == "yy_scan_string" ||
-                 key == "outfile" ||
-                 key == "header-file" ||
-                 key == "yyclass" ||
-                 key == "tables-file" ||
-                 key == "tables-verify" ||
-                 key == "verbose" || key == "noverbose" ||
-                 key == "perf-report" || key == "noperf-report" ||
-                 key == "backup" || key == "nobackup" ||
-                 key == "align" || key == "noalign" ||
-                 key == "read" || key == "noread") {
-            // ignore
-        } else if (key == "reentrant" || key == "c++" || key == "lex-compat" ||
-                   key == "posix-compat" || key == "header" ||
-                   key == "extra-type" || key == "bison-bridge" ||
-                   key == "bison-locations" || key == "array" || key == "pointer") {
+        else if (is_in(key, {"case-insensitive", "caseless", "i"}))
+            out.options.case_insensitive = true;
+        else if (is_in(key, {"case-sensitive", "nocaseless"}))
+            out.options.case_insensitive = false;
+        else if (is_in(key, {"nodefault", "s"}))  out.options.nodefault = true;
+        else if (key == "default")                out.options.nodefault = false;
+        else if (is_in(key, {"debug", "d"}))      out.options.debug = true;
+        else if (key == "nodebug")                out.options.debug = false;
+        else if (key == "prefix")                 out.options.prefix = val;
+        else if (is_in(key, {"reentrant", "c++", "lex-compat", "posix-compat",
+                             "header", "extra-type", "bison-bridge",
+                             "bison-locations", "array", "pointer"})) {
             diag.error(loc(), "unsupported %option: " + key);
-        } else {
+        }
+        else if (is_known_ignored_option(key)) {
+            // accepted silently
+        }
+        else {
             diag.warn(loc(), "ignoring unknown %option: " + key);
         }
+    }
+
+    static bool is_known_ignored_option(std::string_view k) {
+        static const std::string_view kIgnored[] = {
+            "8bit", "no8bit", "interactive", "nointeractive",
+            "batch", "nobatch", "warn", "nowarn", "ecs", "noecs",
+            "meta-ecs", "nometa-ecs", "stack", "nostack",
+            "always-interactive", "fast", "full", "main", "nomain",
+            "yymore", "noyymore", "input", "noinput", "unput", "nounput",
+            "yyalloc", "noyyalloc", "yyfree", "noyyfree",
+            "yyrealloc", "noyyrealloc", "yy_scan_buffer", "yy_scan_bytes",
+            "yy_scan_string", "outfile", "header-file", "yyclass",
+            "tables-file", "tables-verify", "verbose", "noverbose",
+            "perf-report", "noperf-report", "backup", "nobackup",
+            "align", "noalign", "read", "noread",
+        };
+        for (auto s : kIgnored) if (k == s) return true;
+        return false;
     }
 
     void add_start_conds(std::string_view text, bool exclusive) {

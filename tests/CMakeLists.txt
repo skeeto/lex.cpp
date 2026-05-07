@@ -1,3 +1,6 @@
+# Unit tests don't need flex.
+add_subdirectory(unit)
+
 find_package(FLEX)
 
 if(NOT FLEX_FOUND)

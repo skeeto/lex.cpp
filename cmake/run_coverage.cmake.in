@@ -1,0 +1,77 @@
+# Coverage runner. Configured at CMake time to capture paths.
+set(BIN_DIR     "@CMAKE_BINARY_DIR@")
+set(LEX_BIN     "$<TARGET_FILE:lex>") # populated below
+set(LLVM_PROFDATA "@LLVM_PROFDATA@")
+set(LLVM_COV      "@LLVM_COV@")
+set(CTEST_EXE     "@CMAKE_CTEST_COMMAND@")
+set(CMAKE_BIN     "@CMAKE_COMMAND@")
+
+# Resolve LEX_BIN at run time (TARGET_FILE generator expression cannot
+# be evaluated by cmake -P).
+file(GLOB LEX_CANDIDATES
+    "${BIN_DIR}/src/lex"
+    "${BIN_DIR}/src/lex.exe"
+    "${BIN_DIR}/src/Debug/lex.exe"
+    "${BIN_DIR}/src/Release/lex.exe")
+list(LENGTH LEX_CANDIDATES n)
+if(n EQUAL 0)
+    message(FATAL_ERROR "could not locate lex binary under ${BIN_DIR}")
+endif()
+list(GET LEX_CANDIDATES 0 LEX_BIN)
+
+file(GLOB UNIT_CANDIDATES
+    "${BIN_DIR}/tests/unit/lexcpp_unit"
+    "${BIN_DIR}/tests/unit/lexcpp_unit.exe"
+    "${BIN_DIR}/tests/unit/Debug/lexcpp_unit.exe"
+    "${BIN_DIR}/tests/unit/Release/lexcpp_unit.exe")
+list(LENGTH UNIT_CANDIDATES nu)
+set(UNIT_OBJECT_FLAGS "")
+if(nu GREATER 0)
+    list(GET UNIT_CANDIDATES 0 UNIT_BIN)
+    set(UNIT_OBJECT_FLAGS "-object" "${UNIT_BIN}")
+endif()
+
+# Clean and set up.
+file(REMOVE_RECURSE "${BIN_DIR}/coverage")
+file(MAKE_DIRECTORY "${BIN_DIR}/coverage")
+
+# Run the test suite with profile output going to coverage/.
+execute_process(
+    COMMAND ${CMAKE_BIN} -E env
+            LLVM_PROFILE_FILE=${BIN_DIR}/coverage/lex-%p.profraw
+            ${CTEST_EXE} --output-on-failure
+    WORKING_DIRECTORY ${BIN_DIR}
+    RESULT_VARIABLE rv)
+if(NOT rv EQUAL 0)
+    message(WARNING "ctest exited ${rv} (continuing to coverage report)")
+endif()
+
+# Merge profraw files.
+file(GLOB PROFRAWS "${BIN_DIR}/coverage/lex-*.profraw")
+list(LENGTH PROFRAWS np)
+if(np EQUAL 0)
+    message(FATAL_ERROR "no .profraw files found under ${BIN_DIR}/coverage")
+endif()
+
+execute_process(
+    COMMAND ${LLVM_PROFDATA} merge -sparse ${PROFRAWS}
+            -o ${BIN_DIR}/coverage/lex.profdata
+    RESULT_VARIABLE rv)
+if(NOT rv EQUAL 0)
+    message(FATAL_ERROR "llvm-profdata merge failed (rc=${rv})")
+endif()
+
+# Report.
+execute_process(
+    COMMAND ${LLVM_COV} report ${LEX_BIN} ${UNIT_OBJECT_FLAGS}
+            -instr-profile=${BIN_DIR}/coverage/lex.profdata
+            "${BIN_DIR}/../src")
+
+# HTML.
+execute_process(
+    COMMAND ${LLVM_COV} show ${LEX_BIN} ${UNIT_OBJECT_FLAGS}
+            -instr-profile=${BIN_DIR}/coverage/lex.profdata
+            -format=html -output-dir=${BIN_DIR}/coverage/html
+            -show-line-counts-or-regions)
+
+message(STATUS "HTML coverage: ${BIN_DIR}/coverage/html/index.html")

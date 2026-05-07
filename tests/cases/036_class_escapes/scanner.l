@@ -1,0 +1,7 @@
+%option noyywrap
+%%
+[\n\t\r]+   printf("[WS:%d]", (int)yyleng);
+[a-z]+      printf("(%s)", yytext);
+.           ECHO;
+%%
+int main(void){ yylex(); return 0; }
