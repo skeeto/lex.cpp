@@ -499,4 +499,89 @@ std::string emit_c(const CodegenInput& in) {
     return out;
 }
 
+std::string emit_h(const CodegenInput& in) {
+    const auto& f = *in.file;
+    std::string h;
+    std::string guard = "LEX_GENERATED_HEADER_H";
+    h += "#ifndef "; h += guard; h += "\n";
+    h += "#define "; h += guard; h += "\n\n";
+    h += "#include <stdio.h>\n";
+    h += "#include <stddef.h>\n\n";
+
+    h += "#define YY_REENTRANT ";
+    h += (f.options.reentrant ? "1" : "0");
+    h += "\n";
+
+    h += "typedef struct yy_buffer_state *YY_BUFFER_STATE;\n";
+    if (f.options.reentrant)
+        h += "typedef struct yyguts_t *yyscan_t;\n";
+    h += "\n";
+
+    h += "/* start conditions */\n";
+    h += "#define INITIAL 0\n";
+    for (std::size_t i = 0; i < f.conds.size(); ++i) {
+        h += "#define ";
+        h += f.conds[i].name;
+        h += " ";
+        h += std::to_string(i + 1);
+        h += "\n";
+    }
+    h += "\n";
+
+    if (f.options.reentrant) {
+        h += "/* reentrant API */\n";
+        h += "int   yylex_init(yyscan_t *scanner);\n";
+        h += "int   yylex_init_extra(void *user, yyscan_t *scanner);\n";
+        h += "int   yylex_destroy(yyscan_t scanner);\n";
+        if (f.options.bison_bridge && f.options.bison_locations)
+            h += "int   yylex(void *yylval, void *yylloc, yyscan_t scanner);\n";
+        else if (f.options.bison_bridge)
+            h += "int   yylex(void *yylval, yyscan_t scanner);\n";
+        else
+            h += "int   yylex(yyscan_t scanner);\n";
+        h += "char *yyget_text(yyscan_t);  void  yyset_text(char*, yyscan_t);\n";
+        h += "int   yyget_leng(yyscan_t);\n";
+        h += "int   yyget_lineno(yyscan_t); void  yyset_lineno(int, yyscan_t);\n";
+        h += "FILE *yyget_in(yyscan_t);     void  yyset_in (FILE*, yyscan_t);\n";
+        h += "FILE *yyget_out(yyscan_t);    void  yyset_out(FILE*, yyscan_t);\n";
+        h += "void *yyget_extra(yyscan_t);  void  yyset_extra(void*, yyscan_t);\n";
+        h += "YY_BUFFER_STATE yy_create_buffer(FILE*, int, yyscan_t);\n";
+        h += "void            yy_delete_buffer(YY_BUFFER_STATE, yyscan_t);\n";
+        h += "void            yy_switch_to_buffer(YY_BUFFER_STATE, yyscan_t);\n";
+        h += "void            yypush_buffer_state(YY_BUFFER_STATE, yyscan_t);\n";
+        h += "void            yypop_buffer_state(yyscan_t);\n";
+        h += "YY_BUFFER_STATE yy_scan_string(const char*, yyscan_t);\n";
+        h += "YY_BUFFER_STATE yy_scan_bytes (const char*, int, yyscan_t);\n";
+        h += "YY_BUFFER_STATE yy_scan_buffer(char*, size_t, yyscan_t);\n";
+        h += "void            yyrestart    (FILE*, yyscan_t);\n";
+        h += "void            yy_push_state(int, yyscan_t);\n";
+        h += "void            yy_pop_state (yyscan_t);\n";
+        h += "int             yy_top_state (yyscan_t);\n";
+    } else {
+        h += "/* non-reentrant API */\n";
+        h += "extern char *yytext;\n";
+        h += "extern int   yyleng;\n";
+        h += "extern int   yylineno;\n";
+        h += "extern FILE *yyin;\n";
+        h += "extern FILE *yyout;\n";
+        h += "int  yylex   (void);\n";
+        h += "int  yywrap  (void);\n";
+        h += "void yyrestart(FILE*);\n";
+        h += "YY_BUFFER_STATE yy_create_buffer(FILE*, int);\n";
+        h += "void            yy_delete_buffer(YY_BUFFER_STATE);\n";
+        h += "void            yy_switch_to_buffer(YY_BUFFER_STATE);\n";
+        h += "void            yypush_buffer_state(YY_BUFFER_STATE);\n";
+        h += "void            yypop_buffer_state(void);\n";
+        h += "YY_BUFFER_STATE yy_scan_string(const char*);\n";
+        h += "YY_BUFFER_STATE yy_scan_bytes (const char*, int);\n";
+        h += "YY_BUFFER_STATE yy_scan_buffer(char*, size_t);\n";
+        h += "void            yy_push_state(int);\n";
+        h += "void            yy_pop_state (void);\n";
+        h += "int             yy_top_state (void);\n";
+    }
+
+    h += "\n#endif\n";
+    return h;
+}
+
 } // namespace lexcpp

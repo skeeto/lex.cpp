@@ -18,4 +18,9 @@ struct CodegenInput {
 
 [[nodiscard]] std::string emit_c(const CodegenInput& in);
 
+// Emits a companion header for the generated scanner: typedefs,
+// start-condition #defines, and extern/prototype declarations. The
+// caller picks the path; we only build the text.
+[[nodiscard]] std::string emit_h(const CodegenInput& in);
+
 } // namespace lexcpp

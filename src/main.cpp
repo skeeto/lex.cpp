@@ -48,6 +48,7 @@ struct Args {
     bool nodefault = false;
     bool prefix_set = false;
     bool noline = false;
+    std::string header_path;     // empty == no header file
 };
 
 [[nodiscard]] bool starts_with(std::string_view s, std::string_view p) {
@@ -73,6 +74,16 @@ int parse_args(int argc, char** argv, Args& out, lexcpp::Diagnostics& diag) {
             out.nodefault = true;
         } else if (a == "-L" || a == "--noline") {
             out.noline = true;
+        } else if (starts_with(a, "--header-file=")) {
+            out.header_path = std::string(a.substr(14));
+        } else if (a == "--header-file") {
+            // optional argument; if next arg looks like a value, take it
+            if (i + 1 < argc && argv[i + 1][0] != '-') {
+                ++i;
+                out.header_path = argv[i];
+            } else {
+                out.header_path = "_default_";  // placeholder
+            }
         } else if (a == "-o") {
             if (++i >= argc) { diag.error({}, "-o requires an argument"); return 2; }
             out.output_path = argv[i];
@@ -233,6 +244,25 @@ int main(int argc, char** argv) {
             return 1;
         }
         of.write(out.data(), static_cast<std::streamsize>(out.size()));
+    }
+
+    // Companion header.
+    std::string hpath = args.header_path;
+    if (!hpath.empty()) {
+        if (hpath == "_default_") {
+            hpath = args.output_path.empty() ? std::string("lex.yy.h")
+                                             : args.output_path;
+            auto dot = hpath.find_last_of('.');
+            if (dot != std::string::npos) hpath.replace(dot, std::string::npos, ".h");
+            else hpath += ".h";
+        }
+        auto h = lexcpp::emit_h(cg);
+        std::ofstream of(hpath, std::ios::binary);
+        if (!of) {
+            diag.error({}, "cannot open " + hpath + " for writing");
+            return 1;
+        }
+        of.write(h.data(), static_cast<std::streamsize>(h.size()));
     }
     return diag.ok() ? 0 : 1;
 }

@@ -309,6 +309,51 @@ void test_start_cond_decl() {
     CHECK(r->conds[2].exclusive);
 }
 
+void test_header_emit() {
+    std::fprintf(stderr, "test_header_emit\n");
+    lexcpp::Diagnostics d;
+    auto file = lexcpp::parse_lex_file("<t>",
+        "%option noyywrap\n%s STR\n%%\nfoo ECHO;\n%%\n", d);
+    CHECK(file.has_value());
+    lexcpp::NFA nfa;
+    lexcpp::init_nfa(nfa, {"INITIAL", "STR"}, {0, 0});
+    auto resolver = [](std::string_view) -> std::optional<std::string> {
+        return std::nullopt;
+    };
+    auto t = lexcpp::parse_regex("foo", resolver, false, d, {});
+    lexcpp::add_rule_to_nfa(nfa, t.get(), 0, {});
+    auto dfa = lexcpp::build_dfa(nfa);
+    lexcpp::CodegenInput in{&*file, &nfa, &dfa};
+    auto h = lexcpp::emit_h(in);
+    CHECK(h.find("YY_BUFFER_STATE") != std::string::npos);
+    CHECK(h.find("#define INITIAL 0") != std::string::npos);
+    CHECK(h.find("#define STR 1") != std::string::npos);
+    CHECK(h.find("extern char *yytext") != std::string::npos);
+    CHECK(h.find("yylex   (void)") != std::string::npos);
+}
+
+void test_header_reentrant() {
+    std::fprintf(stderr, "test_header_reentrant\n");
+    lexcpp::Diagnostics d;
+    auto file = lexcpp::parse_lex_file("<t>",
+        "%option reentrant noyywrap\n%%\nfoo ECHO;\n%%\n", d);
+    CHECK(file.has_value());
+    lexcpp::NFA nfa;
+    lexcpp::init_nfa(nfa, {"INITIAL"}, {0});
+    auto resolver = [](std::string_view) -> std::optional<std::string> {
+        return std::nullopt;
+    };
+    auto t = lexcpp::parse_regex("foo", resolver, false, d, {});
+    lexcpp::add_rule_to_nfa(nfa, t.get(), 0, {});
+    auto dfa = lexcpp::build_dfa(nfa);
+    lexcpp::CodegenInput in{&*file, &nfa, &dfa};
+    auto h = lexcpp::emit_h(in);
+    CHECK(h.find("typedef struct yyguts_t *yyscan_t;") != std::string::npos);
+    CHECK(h.find("yylex_init(yyscan_t") != std::string::npos);
+    CHECK(h.find("yyget_text(yyscan_t)") != std::string::npos);
+    CHECK(h.find("extern char *yytext") == std::string::npos);
+}
+
 void test_top_block() {
     std::fprintf(stderr, "test_top_block\n");
     lexcpp::Diagnostics d;
@@ -390,6 +435,8 @@ int main() {
     test_reentrant_option();
     test_bison_bridge_option();
     test_top_block();
+    test_header_emit();
+    test_header_reentrant();
     test_line_directives();
     test_diag_warn();
 
