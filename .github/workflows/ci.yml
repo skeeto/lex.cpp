@@ -8,12 +8,13 @@ on:
 
 jobs:
   linux:
-    name: Linux ${{ matrix.compiler }}
+    name: Linux ${{ matrix.compiler }} (${{ matrix.compress }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         compiler: [gcc, clang]
+        compress: ["", "-Cfe", "-f"]
     steps:
       - uses: actions/checkout@v4
       - name: Install deps
@@ -28,16 +29,26 @@ jobs:
           if [ "${{ matrix.compiler }}" = "clang" ]; then
             CC=clang CXX=clang++ cmake -S . -B build \
               -DCMAKE_BUILD_TYPE=Debug \
-              -DLEXCPP_LEX_READY=ON -DLEXCPP_WERROR=ON
+              -DLEXCPP_LEX_READY=ON -DLEXCPP_WERROR=ON \
+              -DLEXCPP_TEST_COMPRESS=${{ matrix.compress }}
           else
             cmake -S . -B build \
               -DCMAKE_BUILD_TYPE=Debug \
-              -DLEXCPP_LEX_READY=ON -DLEXCPP_WERROR=ON
+              -DLEXCPP_LEX_READY=ON -DLEXCPP_WERROR=ON \
+              -DLEXCPP_TEST_COMPRESS=${{ matrix.compress }}
           fi
       - name: Build
         run: cmake --build build -j
       - name: Test
         run: ctest --test-dir build --output-on-failure
+      - name: Install dry-run
+        run: |
+          DESTDIR=/tmp/inst cmake --install build --prefix /usr/local
+          test -x /tmp/inst/usr/local/bin/lex
+          test -f /tmp/inst/usr/local/lib/liblex.a
+          test -f /tmp/inst/usr/local/lib/pkgconfig/lex.pc
+          PKG_CONFIG_PATH=/tmp/inst/usr/local/lib/pkgconfig \
+              pkg-config --libs lex
 
   sanitizers:
     name: ASan+UBSan (clang)
@@ -93,6 +104,24 @@ jobs:
       - run: ./build-fuzz/fuzz/fuzz_lfile   -max_total_time=30
       - run: ./build-fuzz/fuzz/fuzz_runtime -max_total_time=30
 
+  reentrant-only:
+    name: Reentrant smoke (clang)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y flex clang clang-tools libclang-rt-18-dev
+      - name: Configure
+        run: |
+          CC=clang CXX=clang++ cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Debug -DLEXCPP_LEX_READY=ON
+      - run: cmake --build build -j
+      - name: Run reentrant tests
+        run: ctest --test-dir build -R '16[0-5]_' --output-on-failure
+      - name: Run header-file tests
+        run: ctest --test-dir build -R 'header' --output-on-failure || true
+
   macos:
     name: macOS
     runs-on: macos-latest
@@ -120,5 +149,5 @@ jobs:
       - run: cmake --build build --config Release -j
       - name: Smoke
         run: |
-          .\build\src\Release\lex.exe --version
-          .\build\src\Release\lex.exe --help
+          .\build\bin\Release\lex.exe --version
+          .\build\bin\Release\lex.exe --help
