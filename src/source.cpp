@@ -304,6 +304,9 @@ struct Parser {
             "tables-file", "tables-verify", "verbose", "noverbose",
             "perf-report", "noperf-report", "backup", "nobackup",
             "align", "noalign", "read", "noread",
+            "reject", "noreject", "yy_top_state", "noyy_top_state",
+            "stdinit", "nostdinit", "yymore_used", "noyymore_used",
+            "yywrap_used", "noyywrap_used",
         };
         for (auto s : kIgnored) if (k == s) return true;
         return false;
@@ -379,6 +382,18 @@ struct Parser {
             // joins section2_prologue (alongside any `%{ ... %}`
             // blocks); after the first rule we ignore it (rare).
             if (c == ' ' || c == '\t') {
+                // Inside an `<sc>{ ... }` block, indented lines are
+                // rules with leading whitespace -- skip the indent and
+                // let parse_rule handle the pattern that follows.
+                if (!sc_blocks.empty()) {
+                    while (!at_end() && (peek() == ' ' || peek() == '\t')) get();
+                    if (peek() == '\n') { get(); continue; }
+                    parse_rule();
+                    continue;
+                }
+                // At top-level: indented lines before the first rule
+                // belong in the yylex prologue (matches flex). After
+                // the first rule, drop them.
                 std::string l = read_line_keep_nl();
                 if (out.rules.empty()) {
                     if (out.section2_prologue.empty()) out.section2_loc = loc();

@@ -696,6 +696,18 @@ std::string emit_c(const CodegenInput& in) {
         out += "typedef void *yyscan_t;\n";
     out += "\n";
 
+    // Capture libc allocators as function pointers BEFORE the user's
+    // section-1 verbatim runs. This insulates our runtime from
+    // `#define malloc xmalloc`-style macros that some projects (gdb,
+    // libiberty consumers) drop into their .l files: the bare names
+    // here resolve to the C library; later code that refers to
+    // yy_libc_malloc_p stays stable even after malloc has been
+    // hijacked downstream.
+    out += "#include <stdlib.h>\n";
+    out += "void *(*yy_libc_malloc_p)(size_t) = malloc;\n";
+    out += "void *(*yy_libc_realloc_p)(void *, size_t) = realloc;\n";
+    out += "void  (*yy_libc_free_p)(void *) = free;\n\n";
+
     // User %{ %} block(s)
     const std::string& gen_file = in.output_path.empty() ? std::string("lex.yy.c")
                                                          : in.output_path;

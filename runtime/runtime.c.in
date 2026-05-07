@@ -159,23 +159,39 @@ extern int yywrap(void);
    files reference it directly (PostgreSQL, ecpg). */
 typedef size_t yy_size_t;
 
+/* flex defines YY_NULL as the value yylex returns at EOF in non-bison
+   modes (flex picks 0). User .l files sometimes reference it directly
+   (gdb's ada-lex YY_INPUT macro does). */
+#ifndef YY_NULL
+#define YY_NULL 0
+#endif
+
 /* User-overridable allocator hooks. flex routes ALL allocation through
    yyalloc/yyrealloc/yyfree so applications can substitute palloc-like
-   backends. The default is plain malloc/realloc/free. Suppressed via
-   `%option noyyalloc` etc. when the user provides their own. */
+   backends. The default forwards to libc, captured ahead of any user
+   section-1 verbatim that redefines malloc/realloc/free as macros
+   (gdb's #define malloc xmalloc is a real example). The captures live
+   in a struct emitted by codegen before user section 1; the function
+   pointers there are the real libc symbols even after the user
+   redefines the macros. Suppressed via `%option noyyalloc` etc. when
+   the user provides their own. */
+extern void *(*yy_libc_malloc_p)(size_t);
+extern void *(*yy_libc_realloc_p)(void *, size_t);
+extern void  (*yy_libc_free_p)(void *);
+
 #ifndef YY_NO_YYALLOC
 static void *yyalloc(yy_size_t n YY_DECLPM_C) {
-    return malloc(n);
+    return yy_libc_malloc_p(n);
 }
 #endif
 #ifndef YY_NO_YYREALLOC
 static void *yyrealloc(void *p, yy_size_t n YY_DECLPM_C) {
-    return realloc(p, n);
+    return yy_libc_realloc_p(p, n);
 }
 #endif
 #ifndef YY_NO_YYFREE
 static void yyfree(void *p YY_DECLPM_C) {
-    free(p);
+    yy_libc_free_p(p);
 }
 #endif
 
@@ -197,8 +213,8 @@ static void yy_fatal_error(const char *msg YY_DECLPM_C) {
  *   #pragma GCC poison calloc strdup strndup
  * in gcc/system.h. We avoid calloc entirely; users embedding the
  * generated scanner in environments with similar bans see no calls. */
-static void *yy_zalloc(size_t n) {
-    void *p = malloc(n);
+static void *yy_zalloc(size_t n YY_DECLPM_C) {
+    void *p = yyalloc(n YY_CALLPM_C);
     if (p) memset(p, 0, n);
     return p;
 }
@@ -209,7 +225,7 @@ static void yyensure_buffer_stack(YY_DECLPM) { YY_PRELUDE
     if (!yy_buffer_stack) {
         yy_buffer_stack_max = 1;
         yy_buffer_stack = (YY_BUFFER_STATE*)
-            yy_zalloc(yy_buffer_stack_max * sizeof(YY_BUFFER_STATE));
+            yy_zalloc(yy_buffer_stack_max * sizeof(YY_BUFFER_STATE) YY_CALLPM_C);
         if (!yy_buffer_stack) {
             YY_FATAL_ERROR("lex: out of memory");
         }
@@ -220,7 +236,7 @@ static void yyensure_buffer_stack(YY_DECLPM) { YY_PRELUDE
 static void yy_grow_stack(YY_DECLPM) { YY_PRELUDE
     size_t new_max = yy_buffer_stack_max ? yy_buffer_stack_max * 2 : 4;
     YY_BUFFER_STATE *p = (YY_BUFFER_STATE*)
-        realloc(yy_buffer_stack, new_max * sizeof(YY_BUFFER_STATE));
+        yyrealloc(yy_buffer_stack, new_max * sizeof(YY_BUFFER_STATE) YY_CALLPM_C);
     if (!p) { YY_FATAL_ERROR("lex: out of memory"); }
     for (size_t i = yy_buffer_stack_max; i < new_max; ++i) p[i] = 0;
     yy_buffer_stack = p;
@@ -228,11 +244,11 @@ static void yy_grow_stack(YY_DECLPM) { YY_PRELUDE
 }
 
 YY_BUFFER_STATE yy_create_buffer(FILE *file, int size YY_DECLPM_C) { YY_PRELUDE
-    YY_BUFFER_STATE b = (YY_BUFFER_STATE)yy_zalloc(sizeof(*b));
+    YY_BUFFER_STATE b = (YY_BUFFER_STATE)yy_zalloc(sizeof(*b) YY_CALLPM_C);
     if (!b) return 0;
     b->yyb_size = (size > 0) ? (size_t)size : YY_BUF_SIZE;
-    b->yyb_data = (char*)malloc(b->yyb_size + 2);
-    if (!b->yyb_data) { free(b); return 0; }
+    b->yyb_data = (char*)yyalloc(b->yyb_size + 2 YY_CALLPM_C);
+    if (!b->yyb_data) { yyfree(b YY_CALLPM_C); return 0; }
     b->yyb_data[0] = 0;
     b->yyb_data[1] = 0;
     b->yy_input_file     = file;
@@ -246,8 +262,8 @@ YY_BUFFER_STATE yy_create_buffer(FILE *file, int size YY_DECLPM_C) { YY_PRELUDE
 
 void yy_delete_buffer(YY_BUFFER_STATE b YY_DECLPM_C) { YY_PRELUDE
     if (!b) return;
-    if (b->yy_is_our_buffer) free(b->yyb_data);
-    free(b);
+    if (b->yy_is_our_buffer) yyfree(b->yyb_data YY_CALLPM_C);
+    yyfree(b YY_CALLPM_C);
 }
 
 void yy_flush_buffer(YY_BUFFER_STATE b YY_DECLPM_C) { YY_PRELUDE
@@ -293,7 +309,7 @@ void yypop_buffer_state(YY_DECLPM) { YY_PRELUDE
 
 YY_BUFFER_STATE yy_scan_buffer(char *base, size_t size YY_DECLPM_C) { YY_PRELUDE
     if (size < 2 || base[size - 2] != 0 || base[size - 1] != 0) return 0;
-    YY_BUFFER_STATE b = (YY_BUFFER_STATE)yy_zalloc(sizeof(*b));
+    YY_BUFFER_STATE b = (YY_BUFFER_STATE)yy_zalloc(sizeof(*b) YY_CALLPM_C);
     if (!b) return 0;
     b->yyb_data            = base;
     b->yyb_size       = size - 2;
@@ -309,13 +325,13 @@ YY_BUFFER_STATE yy_scan_buffer(char *base, size_t size YY_DECLPM_C) { YY_PRELUDE
 YY_BUFFER_STATE yy_scan_bytes(const char *bytes, int len YY_DECLPM_C) { YY_PRELUDE
     if (len < 0) len = 0;
     size_t n = (size_t)len;
-    char *buf = (char*)malloc(n + 2);
+    char *buf = (char*)yyalloc(n + 2 YY_CALLPM_C);
     if (!buf) return 0;
     if (n) memcpy(buf, bytes, n);
     buf[n] = 0;
     buf[n + 1] = 0;
-    YY_BUFFER_STATE b = (YY_BUFFER_STATE)yy_zalloc(sizeof(*b));
-    if (!b) { free(buf); return 0; }
+    YY_BUFFER_STATE b = (YY_BUFFER_STATE)yy_zalloc(sizeof(*b) YY_CALLPM_C);
+    if (!b) { yyfree(buf YY_CALLPM_C); return 0; }
     b->yyb_data            = buf;
     b->yyb_size       = n;
     b->yyb_end        = n;
@@ -337,7 +353,7 @@ static void yy_buf_grow(YY_BUFFER_STATE b, size_t want YY_DECLPM_C) { YY_PRELUDE
     if (b->yyb_size >= want) return;
     size_t s = b->yyb_size ? b->yyb_size : 4096;
     while (s < want) s *= 2;
-    char *p = (char*)realloc(b->yyb_data, s + 2);
+    char *p = (char*)yyrealloc(b->yyb_data, s + 2 YY_CALLPM_C);
     if (!p) { YY_FATAL_ERROR("lex: out of memory"); }
     b->yyb_data = p;
     b->yyb_size = s;
@@ -462,7 +478,7 @@ static void yy_do_yyless(int n YY_DECLPM_C) { YY_PRELUDE
 
 static void yy_grow_state_stack(YY_DECLPM) { YY_PRELUDE
     size_t new_max = yy_state_stack_max ? yy_state_stack_max * 2 : 16;
-    int *p = (int*)realloc(yy_state_stack, new_max * sizeof(int));
+    int *p = (int*)yyrealloc(yy_state_stack, new_max * sizeof(int) YY_CALLPM_C);
     if (!p) { YY_FATAL_ERROR("lex: out of memory"); }
     yy_state_stack = p;
     yy_state_stack_max = new_max;
@@ -546,6 +562,15 @@ static void yy_jam_report(YY_DECLPM) { YY_PRELUDE
 #define yyterminate(...) return (0 __VA_OPT__(,) __VA_ARGS__)
 #endif
 #define unput(c)        yy_unput((int)(unsigned char)(c) YY_CALLPM_C)
+/* flex spells the unput helper `yyunput` (no underscore) and exposes
+   it as a real function; some user .l files (gdb's ada-lex) suppress
+   "unused" warnings by mentioning `yyunput` as a value. We keep
+   yyunput as a static function rather than a macro so that name has
+   address. */
+static void yyunput(int c, char *buf YY_DECLPM_C) {
+    (void)buf;
+    yy_unput(c YY_CALLPM_C);
+}
 #define input()         yy_input(YY_CALLPM)
 #define yyless(n)       yy_do_yyless((int)(n) YY_CALLPM_C)
 
@@ -553,8 +578,11 @@ static void yy_jam_report(YY_DECLPM) { YY_PRELUDE
 #if YY_REENTRANT
 int yylex_init(yyscan_t *scanner) {
     if (!scanner) return 1;
-    yyguts_t *g = (yyguts_t*)yy_zalloc(sizeof(yyguts_t));
+    /* No yyscanner yet -- bypass the per-scanner yyalloc hook and go
+       through the captured libc allocator directly. */
+    yyguts_t *g = (yyguts_t*)yy_libc_malloc_p(sizeof(yyguts_t));
     if (!g) { *scanner = 0; return 1; }
+    memset(g, 0, sizeof(yyguts_t));
     /* yylineno_r left at 0 -- flex's reentrant convention. */
     *scanner = g;
     return 0;
@@ -570,20 +598,27 @@ int yylex_init_extra(YY_EXTRA_TYPE user_extra, yyscan_t *scanner) {
 int yylex_destroy(yyscan_t scanner) {
     if (!scanner) return 0;
     yyguts_t *g = (yyguts_t*)scanner;
+    /* In yylex_destroy `yyscanner` isn't a parameter (the user's API
+       names it `scanner`). We call the captured libc allocator
+       directly so the macros that need yyscanner don't fire. The
+       mirroring allocation in yylex_init does the same; users that
+       want a custom allocator path here should do their own cleanup
+       around yylex_destroy. */
+    yyscan_t yyscanner = scanner;
     /* free all buffers on the stack */
     while (g->yy_buffer_stack_r) {
         YY_BUFFER_STATE b = g->yy_buffer_stack_r[g->yy_buffer_stack_top_r];
         if (b) {
-            if (b->yy_is_our_buffer) free(b->yyb_data);
-            free(b);
+            if (b->yy_is_our_buffer) yyfree(b->yyb_data YY_CALLPM_C);
+            yyfree(b YY_CALLPM_C);
             g->yy_buffer_stack_r[g->yy_buffer_stack_top_r] = 0;
         }
         if (g->yy_buffer_stack_top_r == 0) break;
         --g->yy_buffer_stack_top_r;
     }
-    free(g->yy_buffer_stack_r);
-    free(g->yy_state_stack_r);
-    free(g);
+    yyfree(g->yy_buffer_stack_r YY_CALLPM_C);
+    yyfree(g->yy_state_stack_r YY_CALLPM_C);
+    yy_libc_free_p(g);  /* destroy the scanner itself; yyscanner is ourselves */
     return 0;
 }
 
