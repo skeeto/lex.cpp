@@ -33,3 +33,7 @@ add_custom_command(
     VERBATIM)
 
 target_sources(lex PRIVATE ${RUNTIME_HEADER})
+
+install(TARGETS lex
+    EXPORT lexcppTargets
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

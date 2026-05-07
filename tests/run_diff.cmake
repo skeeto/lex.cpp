@@ -74,12 +74,18 @@ function(_compile c_in bin_out)
     # -w to silence flex's old-style warnings; we only care about output.
     # Modern clang errors on implicit function declarations and old-style
     # K&R; flex 2.6.4's output uses both. Soften to warnings.
+    # Link liblex (our default yywrap+main) -- the static archive only
+    # contributes symbols not already defined by the .l file.
+    set(_lex_lib "")
+    if(LEX_LIB)
+        set(_lex_lib ${LEX_LIB})
+    endif()
     execute_process(
         COMMAND ${CC_EXE} -std=c99 -O0 -g -w
                 -Wno-error=implicit-function-declaration
                 -Wno-error=int-conversion
                 -Wno-error=incompatible-pointer-types
-                ${c_in} -o ${bin_out}
+                ${c_in} ${_lex_lib} -o ${bin_out}
         WORKING_DIRECTORY ${WORK_DIR}
         RESULT_VARIABLE rv
         OUTPUT_VARIABLE out

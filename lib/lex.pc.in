@@ -1,0 +1,8 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+exec_prefix=${prefix}
+libdir=${prefix}/@CMAKE_INSTALL_LIBDIR@
+
+Name: lex
+Description: Static library for lex/flex-generated scanners (default yywrap + main)
+Version: @PROJECT_VERSION@
+Libs: -L${libdir} -llex

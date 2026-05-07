@@ -21,6 +21,7 @@ function(add_lex_diff_test name dir)
             -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/work/${name}
             -DFLEX_EXE=${FLEX_EXECUTABLE}
             -DLEX_EXE=$<TARGET_FILE:lex>
+            -DLEX_LIB=$<TARGET_FILE:lex_lib>
             -DCC_EXE=${CMAKE_C_COMPILER}
             -DLEX_READY=${LEXCPP_LEX_READY}
             -P ${CMAKE_SOURCE_DIR}/tests/run_diff.cmake

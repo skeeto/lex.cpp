@@ -15,6 +15,13 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(GNUInstallDirs)
+
+# Centralised output layout: bin/ for executables, lib/ for archives.
+# Multi-config generators (MSVC, Xcode) suffix per config automatically.
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 option(LEXCPP_BUILD_TESTS "Build the CTest test suite" ON)
 option(LEXCPP_BUILD_FUZZ  "Build libFuzzer harnesses (clang only)" OFF)
@@ -27,6 +34,7 @@ include(Sanitizers)
 include(Coverage)
 
 add_subdirectory(src)
+add_subdirectory(lib)
 
 if(LEXCPP_BUILD_TESTS)
     enable_testing()
