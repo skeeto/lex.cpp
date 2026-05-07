@@ -106,6 +106,24 @@ int parse_args(int argc, char** argv, Args& out, lexcpp::Diagnostics& diag) {
     return std::move(ss).str();
 }
 
+// Normalise text for the parser: strip a leading UTF-8 BOM and collapse
+// CRLF -> LF so the line-oriented parser is OS-independent.
+void normalise_source(std::string& s) {
+    if (s.size() >= 3 &&
+        static_cast<unsigned char>(s[0]) == 0xef &&
+        static_cast<unsigned char>(s[1]) == 0xbb &&
+        static_cast<unsigned char>(s[2]) == 0xbf) {
+        s.erase(0, 3);
+    }
+    std::string out;
+    out.reserve(s.size());
+    for (std::size_t i = 0; i < s.size(); ++i) {
+        if (s[i] == '\r' && i + 1 < s.size() && s[i + 1] == '\n') continue;
+        out.push_back(s[i]);
+    }
+    s.swap(out);
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -127,6 +145,7 @@ int main(int argc, char** argv) {
         }
         source = slurp(f);
     }
+    normalise_source(source);
 
     auto file_opt = lexcpp::parse_lex_file(source_label, source, diag);
     if (!file_opt || !diag.ok()) return 1;

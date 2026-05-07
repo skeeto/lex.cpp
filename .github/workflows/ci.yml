@@ -1,0 +1,124 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  linux:
+    name: Linux ${{ matrix.compiler }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flex llvm gcovr
+          if [ "${{ matrix.compiler }}" = "clang" ]; then
+            sudo apt-get install -y clang clang-tools libclang-rt-18-dev
+          fi
+      - name: Configure
+        run: |
+          if [ "${{ matrix.compiler }}" = "clang" ]; then
+            CC=clang CXX=clang++ cmake -S . -B build \
+              -DCMAKE_BUILD_TYPE=Debug \
+              -DLEXCPP_LEX_READY=ON -DLEXCPP_WERROR=ON
+          else
+            cmake -S . -B build \
+              -DCMAKE_BUILD_TYPE=Debug \
+              -DLEXCPP_LEX_READY=ON -DLEXCPP_WERROR=ON
+          fi
+      - name: Build
+        run: cmake --build build -j
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  sanitizers:
+    name: ASan+UBSan (clang)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y flex clang clang-tools libclang-rt-18-dev
+      - name: Configure
+        run: |
+          CC=clang CXX=clang++ cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DLEXCPP_LEX_READY=ON -DLEXCPP_SANITIZE=ON
+      - run: cmake --build build -j
+      - run: ctest --test-dir build --output-on-failure
+
+  coverage:
+    name: Coverage (clang)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y flex clang llvm libclang-rt-18-dev
+      - name: Configure
+        run: |
+          CC=clang CXX=clang++ cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DLEXCPP_LEX_READY=ON -DLEXCPP_COVERAGE=ON
+      - run: cmake --build build -j
+      - run: cmake --build build --target coverage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html
+          path: build/coverage/html
+
+  fuzz-smoke:
+    name: Fuzz smoke (clang)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y flex clang clang-tools libclang-rt-18-dev
+      - name: Configure
+        run: |
+          CC=clang CXX=clang++ cmake -S . -B build-fuzz \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DLEXCPP_BUILD_FUZZ=ON -DLEXCPP_BUILD_TESTS=OFF
+      - run: cmake --build build-fuzz -j
+      - run: ./build-fuzz/fuzz/fuzz_regex   -max_total_time=30
+      - run: ./build-fuzz/fuzz/fuzz_lfile   -max_total_time=30
+      - run: ./build-fuzz/fuzz/fuzz_runtime -max_total_time=30
+
+  macos:
+    name: macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install flex
+        run: brew install flex
+      - name: Configure
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DLEXCPP_LEX_READY=ON
+      - run: cmake --build build -j
+      - run: ctest --test-dir build --output-on-failure
+
+  windows:
+    name: Windows MSVC
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      # No flex on Windows runner by default; build only (LEXCPP_LEX_READY=OFF
+      # short-circuits inside tests/CMakeLists.txt when flex is not found).
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      - run: cmake --build build --config Release -j
+      - name: Smoke
+        run: |
+          .\build\src\Release\lex.exe --version
+          .\build\src\Release\lex.exe --help
