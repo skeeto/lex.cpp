@@ -433,41 +433,65 @@ ParsedPattern parse_pattern(std::string_view src,
 
     bool s_had_eol = peek_is_eol_anchor(s.get());
     auto s_body = strip_eol_anchor(std::move(s));
-    int len = fixed_length(s_body.get());
-    if (len < 0) {
-        diag.error(loc, "trailing context `/s` must be fixed length");
-        return {};
-    }
-    out.trail_len = len + (s_had_eol ? 1 : 0);
 
-    // r ends in ^? Strip the BOL too -- it stays at the front of the
-    // combined regex. r$ is not allowed (flex restricts).
     if (peek_is_eol_anchor(r.get())) {
         diag.error(loc, "`$` is not permitted on the head of `r/s`");
         return {};
     }
 
-    auto cat = std::make_unique<Node>();
-    cat->kind = NodeKind::Concat;
-    cat->a = std::move(r);
-    if (s_body) {
-        cat->b = std::move(s_body);
-    } else {
-        cat->b = std::make_unique<Node>();
-        cat->b->kind = NodeKind::Empty;
+    int len = fixed_length(s_body.get());
+    if (len >= 0) {
+        // Fixed-length trail: combine r and s into one regex and rewind
+        // by `len` (plus 1 if `s$` -- counts the implicit \n) on accept.
+        out.trail_len = len + (s_had_eol ? 1 : 0);
+        auto cat = std::make_unique<Node>();
+        cat->kind = NodeKind::Concat;
+        cat->a = std::move(r);
+        if (s_body) {
+            cat->b = std::move(s_body);
+        } else {
+            cat->b = std::make_unique<Node>();
+            cat->b->kind = NodeKind::Empty;
+        }
+        out.tree = std::move(cat);
+        if (s_had_eol) {
+            auto nl = std::make_unique<Node>();
+            nl->kind = NodeKind::Class;
+            nl->cls.add('\n');
+            auto wrap = std::make_unique<Node>();
+            wrap->kind = NodeKind::Concat;
+            wrap->a = std::move(out.tree);
+            wrap->b = std::move(nl);
+            out.tree = std::move(wrap);
+        }
+        return out;
     }
-    out.tree = std::move(cat);
+
+    // Variable-length trail. Emit r BOUNDARY s; the boundary marker
+    // tells the NFA/DFA where to rewind at accept.
+    out.trail_len = -1;
+    auto bound = std::make_unique<Node>();
+    bound->kind = NodeKind::TrailBoundary;
+    auto inner = std::make_unique<Node>();
+    inner->kind = NodeKind::Concat;
+    inner->a = std::move(bound);
+    if (s_body) inner->b = std::move(s_body);
+    else { inner->b = std::make_unique<Node>(); inner->b->kind = NodeKind::Empty; }
     if (s_had_eol) {
-        // append a literal \n so the trail includes it
         auto nl = std::make_unique<Node>();
         nl->kind = NodeKind::Class;
         nl->cls.add('\n');
         auto wrap = std::make_unique<Node>();
         wrap->kind = NodeKind::Concat;
-        wrap->a = std::move(out.tree);
+        wrap->a = std::move(inner);
         wrap->b = std::move(nl);
-        out.tree = std::move(wrap);
+        inner = std::move(wrap);
     }
+    auto cat = std::make_unique<Node>();
+    cat->kind = NodeKind::Concat;
+    cat->a = std::move(r);
+    cat->b = std::move(inner);
+    out.tree = std::move(cat);
     return out;
 }
 

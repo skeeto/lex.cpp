@@ -47,6 +47,7 @@ struct AcceptPair {
     std::int32_t normal = -1;
     std::int32_t eol    = -1;
     std::vector<std::int32_t> list;     // sorted ASC, deduped
+    std::vector<std::int32_t> boundary; // rules whose boundary marker is in set
 };
 
 AcceptPair accept_for(const NFA& nfa, const StateSet& set) {
@@ -65,6 +66,22 @@ AcceptPair accept_for(const NFA& nfa, const StateSet& set) {
         if (slot < 0 || r < slot) slot = r;
     }
     p.list = std::move(rules);
+
+    // Boundary tracking: for each rule with a variable trail, check
+    // whether any of its boundary marker states is in this DFA state's
+    // NFA-set. Use a hash set for O(|set|).
+    if (!nfa.rule_boundary_states.empty()) {
+        for (std::size_t r = 0; r < nfa.rule_boundary_states.size(); ++r) {
+            const auto& markers = nfa.rule_boundary_states[r];
+            if (markers.empty()) continue;
+            for (auto m : markers) {
+                if (std::binary_search(set.begin(), set.end(), m)) {
+                    p.boundary.push_back(static_cast<std::int32_t>(r));
+                    break;
+                }
+            }
+        }
+    }
     return p;
 }
 
@@ -154,9 +171,10 @@ DFA build_dfa(const NFA& nfa, bool use_eclasses, bool compute_meta) {
         DFAState s;
         s.next.assign(static_cast<std::size_t>(dfa.nclasses), -1);
         auto ap = accept_for(nfa, k.v);
-        s.accept_normal = ap.normal;
-        s.accept_eol    = ap.eol;
-        s.accept_list   = std::move(ap.list);
+        s.accept_normal   = ap.normal;
+        s.accept_eol      = ap.eol;
+        s.accept_list     = std::move(ap.list);
+        s.boundary_rules  = std::move(ap.boundary);
         dfa.states.push_back(std::move(s));
         id_to_set.push_back(k.v);
         index.emplace(std::move(k), id);

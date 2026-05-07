@@ -398,6 +398,11 @@ std::string yy_lex_body(const LexFile& f, const DFA& dfa, const NFA& nfa,
     s << "            return 0;\n";
     s << "        }\n";
 
+    bool any_var_trail = false;
+    for (auto t : nfa.rule_trail) if (t < 0) { any_var_trail = true; break; }
+    int n_rules_v = static_cast<int>(rm.total_nfa_rules);
+    if (n_rules_v <= 0) n_rules_v = 1;
+
     s << "        int yy_state = yy_at_bol\n";
     s << "            ? yy_cond_bol[yy_start]\n";
     s << "            : yy_cond_normal[yy_start];\n";
@@ -407,6 +412,16 @@ std::string yy_lex_body(const LexFile& f, const DFA& dfa, const NFA& nfa,
     s << "        size_t yy_acc_n_len = 0;\n";
     s << "        int    yy_acc_e = -1;\n";
     s << "        size_t yy_acc_e_len = 0;\n";
+    if (any_var_trail) {
+        s << "        size_t yy_boundary_pos[" << n_rules_v << "];\n";
+        s << "        for (int yy_bi = 0; yy_bi < " << n_rules_v
+          << "; ++yy_bi) yy_boundary_pos[yy_bi] = (size_t)-1;\n";
+        s << "        { int yy_off = yy_boundary_off[yy_state];\n";
+        s << "          int yy_n   = yy_boundary_off[yy_state + 1] - yy_off;\n";
+        s << "          for (int yy_bi = 0; yy_bi < yy_n; ++yy_bi)\n";
+        s << "              yy_boundary_pos[yy_boundary_pool[yy_off + yy_bi]] = yy_mb;\n";
+        s << "        }\n";
+    }
     s << "        if (yy_accept_normal[yy_state] >= 0) {\n";
     s << "            yy_acc_n = yy_accept_normal[yy_state]; yy_acc_n_len = 0;\n";
     s << "        }\n";
@@ -419,6 +434,13 @@ std::string yy_lex_body(const LexFile& f, const DFA& dfa, const NFA& nfa,
     s << "            if (yy_next < 0) break;\n";
     s << "            yy_state = yy_next;\n";
     s << "            yy_scan++;\n";
+    if (any_var_trail) {
+        s << "            { int yy_off = yy_boundary_off[yy_state];\n";
+        s << "              int yy_n   = yy_boundary_off[yy_state + 1] - yy_off;\n";
+        s << "              for (int yy_bi = 0; yy_bi < yy_n; ++yy_bi)\n";
+        s << "                  yy_boundary_pos[yy_boundary_pool[yy_off + yy_bi]] = yy_scan;\n";
+        s << "            }\n";
+    }
     s << "            int yy_an = yy_accept_normal[yy_state];\n";
     s << "            int yy_ae = yy_accept_eol[yy_state];\n";
     s << "            if (yy_an >= 0) { yy_acc_n = yy_an; yy_acc_n_len = yy_scan - yy_mb; }\n";
@@ -464,6 +486,14 @@ std::string yy_lex_body(const LexFile& f, const DFA& dfa, const NFA& nfa,
     s << "            if (yy_trail > 0 && (size_t)yy_trail <= yy_len) {\n";
     s << "                yy_len -= (size_t)yy_trail;\n";
     s << "            }\n";
+    if (any_var_trail) {
+        s << "            else if (yy_trail < 0) {\n";
+        s << "                size_t yy_bp = yy_boundary_pos[yy_rule];\n";
+        s << "                if (yy_bp != (size_t)-1 && yy_bp >= yy_mb && yy_bp <= yy_mb + yy_len) {\n";
+        s << "                    yy_len = yy_bp - yy_mb;\n";
+        s << "                }\n";
+        s << "            }\n";
+    }
     s << "        }\n";
     s << "        yy_buf_pos = yy_mb + yy_len;\n";
     s << "        if (yy_more_offset > 0) {\n";
@@ -640,6 +670,23 @@ std::string emit_c(const CodegenInput& in) {
         for (auto t : nfa.rule_trail) tr.push_back(t);
         if (tr.empty()) tr.push_back(0);
         append_int_array(out, "yy_rule_trail_len", "int", tr);
+
+        // Variable-length trailing context: per-state list of rule
+        // ids whose boundary state is in this DFA-state's NFA-set.
+        bool any_var_trail = false;
+        for (auto t : nfa.rule_trail) if (t < 0) { any_var_trail = true; break; }
+        if (any_var_trail) {
+            std::vector<long long> off, pool;
+            off.reserve(d.states.size() + 1);
+            for (const auto& st : d.states) {
+                off.push_back(static_cast<long long>(pool.size()));
+                for (auto r : st.boundary_rules) pool.push_back(r);
+            }
+            off.push_back(static_cast<long long>(pool.size()));
+            if (pool.empty()) pool.push_back(0);
+            append_int_array(out, "yy_boundary_off",  "int", off);
+            append_int_array(out, "yy_boundary_pool", "int", pool);
+        }
 
         // REJECT support: full per-state accept lists.
         if (f.options.uses_reject) {

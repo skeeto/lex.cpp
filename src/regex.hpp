@@ -33,6 +33,7 @@ enum class NodeKind : std::uint8_t {
     Repeat,     // {n,m}; if m == kInf, unbounded
     AnchorBOL,  // ^
     AnchorEOL,  // $
+    TrailBoundary, // r/s separator: zero-width marker for variable-length trail
 };
 
 struct Node {

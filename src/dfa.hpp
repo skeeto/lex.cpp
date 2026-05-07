@@ -18,6 +18,9 @@ struct DFAState {
     std::int32_t accept_eol    = -1;
     // All accepting rules in this state's NFA-set (sorted by id ASC).
     std::vector<std::int32_t> accept_list;
+    // Rules whose r/s boundary marker is in this state's NFA-set.
+    // Runtime records the scan position when entering one of these.
+    std::vector<std::int32_t> boundary_rules;
 };
 
 struct DFAStart {

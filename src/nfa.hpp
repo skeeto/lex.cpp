@@ -16,6 +16,7 @@ struct NFAEdge {
 struct NFAState {
     std::vector<NFAEdge> out;
     std::int32_t accept_rule = -1;
+    bool is_boundary = false;       // marker for variable-length r/s
 };
 
 // Per-condition start states: separate "normal" and "BOL" entry points.
@@ -31,8 +32,9 @@ struct NFA {
     std::vector<std::uint8_t> cond_excl;  // 0 == inclusive, 1 == exclusive
     std::vector<std::uint8_t> rule_bol;   // per rule id
     std::vector<std::uint8_t> rule_eol;   // per rule id
-    std::vector<std::int32_t> rule_trail; // per rule id; 0 = none
+    std::vector<std::int32_t> rule_trail; // per rule id; 0 = none, -1 = variable
     std::vector<std::vector<std::int32_t>> eof_rules; // per cond id, rule ids
+    std::vector<std::vector<std::int32_t>> rule_boundary_states; // per rule, NFA state ids that mark r/s boundary (variable trail)
 };
 
 // Add a rule to the NFA. `conds` lists condition ids the rule belongs to;

@@ -156,6 +156,14 @@ Frag compile_repeat(NFA& nfa, const Node* n) {
     return head;
 }
 
+Frag compile_boundary(NFA& nfa) {
+    auto s = new_state(nfa);
+    auto e = new_state(nfa);
+    nfa.states[static_cast<std::size_t>(e)].is_boundary = true;
+    add_eps(nfa, s, e);
+    return {s, e};
+}
+
 Frag compile(NFA& nfa, const Node* n) {
     if (!n) return compile_empty(nfa);
     switch (n->kind) {
@@ -167,6 +175,7 @@ Frag compile(NFA& nfa, const Node* n) {
         case NodeKind::Plus:     return compile_plus(nfa, n);
         case NodeKind::Question: return compile_question(nfa, n);
         case NodeKind::Repeat:   return compile_repeat(nfa, n);
+        case NodeKind::TrailBoundary: return compile_boundary(nfa);
         case NodeKind::AnchorBOL:
         case NodeKind::AnchorEOL:
             // Anchors should have been stripped at the rule boundary; if
@@ -224,16 +233,24 @@ void add_rule_to_nfa(NFA& nfa, const Node* root, std::int32_t rule_id,
                      const RuleSites& sites, std::int32_t trail_len) {
     bool bol = false, eol = false;
     const Node* body = unwrap_anchors(root, bol, eol);
+    std::int32_t pre = static_cast<std::int32_t>(nfa.states.size());
     Frag f = compile(nfa, body);
     nfa.states[static_cast<std::size_t>(f.e)].accept_rule = rule_id;
     while (static_cast<std::int32_t>(nfa.rule_bol.size()) <= rule_id) {
         nfa.rule_bol.push_back(0);
         nfa.rule_eol.push_back(0);
         nfa.rule_trail.push_back(0);
+        nfa.rule_boundary_states.emplace_back();
     }
     nfa.rule_bol[static_cast<std::size_t>(rule_id)] = bol ? 1 : 0;
     nfa.rule_eol[static_cast<std::size_t>(rule_id)] = eol ? 1 : 0;
     nfa.rule_trail[static_cast<std::size_t>(rule_id)] = trail_len;
+    // Collect any boundary marker states added during this compile.
+    std::int32_t post = static_cast<std::int32_t>(nfa.states.size());
+    for (std::int32_t i = pre; i < post; ++i) {
+        if (nfa.states[static_cast<std::size_t>(i)].is_boundary)
+            nfa.rule_boundary_states[static_cast<std::size_t>(rule_id)].push_back(i);
+    }
     connect_to_conds(nfa, f.s, bol, sites);
 }
 
