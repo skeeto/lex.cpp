@@ -1,0 +1,6 @@
+%option noyywrap
+%%
+((((a*)*)*)*)*  printf("[%d]", (int)yyleng);
+.|\n            ECHO;
+%%
+int main(void){ yylex(); return 0; }

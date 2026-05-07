@@ -1,0 +1,10 @@
+%option noyywrap
+%%
+[0-9]+      {
+                int v = atoi(yytext);
+                if (v > 10) { printf("BIG(%d)", v); }
+                else        { printf("small(%d)", v); }
+            }
+.|\n        ECHO;
+%%
+int main(void){ yylex(); return 0; }

@@ -1,0 +1,6 @@
+%option noyywrap
+%%
+[]a]+       printf("R(%s) ", yytext);
+.|\n        ECHO;
+%%
+int main(void){ yylex(); return 0; }

@@ -1,0 +1,7 @@
+%option noyywrap
+%%
+"if"        printf("[KW:if]");
+[a-z]+      printf("(id:%s)", yytext);
+.|\n        ECHO;
+%%
+int main(void){ yylex(); return 0; }

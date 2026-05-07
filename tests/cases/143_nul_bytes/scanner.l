@@ -1,0 +1,7 @@
+%option noyywrap
+%%
+[a-z]+      printf("(%s)", yytext);
+\x00        printf("<NUL>");
+.|\n        /* drop */
+%%
+int main(void){ yylex(); return 0; }

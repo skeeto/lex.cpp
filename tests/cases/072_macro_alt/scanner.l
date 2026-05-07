@@ -1,0 +1,8 @@
+%option noyywrap
+KW (if|then|else|while)
+%%
+{KW}        printf("KW(%s) ", yytext);
+[a-z]+      printf("id(%s) ", yytext);
+.|\n        ECHO;
+%%
+int main(void){ yylex(); return 0; }

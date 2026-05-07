@@ -1,0 +1,6 @@
+%option noyywrap
+%%
+[^a-z\n]+   printf("[X:%s]", yytext);
+.|\n        ECHO;
+%%
+int main(void){ yylex(); return 0; }

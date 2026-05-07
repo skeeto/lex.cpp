@@ -1,0 +1,6 @@
+%option noyywrap
+%%
+[a-z]+      printf(".");
+.|\n        /* skip */
+%%
+int main(void){ yylex(); printf("\n"); return 0; }
