@@ -400,6 +400,14 @@ std::string yy_lex_body(const LexFile& f, const DFA& dfa, const NFA& nfa,
     s << "        YY_USER_INIT\n";
     s << "        #endif\n";
     s << "    }\n";
+    if (!f.section2_prologue.empty()) {
+        std::string ld;
+        emit_line_directive(ld, f.section2_loc.file, f.section2_loc.line,
+                            line_directives);
+        s << ld;
+        s << f.section2_prologue;
+        if (f.section2_prologue.back() != '\n') s << "\n";
+    }
     s << "    for (;;) {\n";
     s << "        yy_text_unseal(YY_CALLPM);\n";
     s << "        if (yy_buf_pos >= yy_buf_end) {\n";

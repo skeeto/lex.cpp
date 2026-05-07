@@ -328,9 +328,12 @@ struct Parser {
                 if (peek() == '\n') get();
                 return;
             }
-            // %{ ... %} verbatim; collected as section 2 prologue inside
-            // yylex(). For our minimal scope, we append to section1_verbatim.
+            // %{ ... %} verbatim. Per flex semantics this lands at the
+            // top of the yylex() function body (so users can declare
+            // local variables); separate field from section 1's
+            // verbatim which is at file scope.
             if (c == '%' && peek(1) == '{') {
+                if (out.section2_prologue.empty()) out.section2_loc = loc();
                 get(); get();
                 while (!at_end() && peek() != '\n') get();
                 if (peek() == '\n') get();
@@ -341,7 +344,7 @@ struct Parser {
                         if (peek() == '\n') get();
                         break;
                     }
-                    out.section1_verbatim += read_line_keep_nl();
+                    out.section2_prologue += read_line_keep_nl();
                 }
                 continue;
             }

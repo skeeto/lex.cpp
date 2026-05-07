@@ -36,6 +36,8 @@ struct LexFile {
     SourceLoc   section_top_loc;
     std::string section1_verbatim;     // %{ ... %} blocks from section 1
     SourceLoc   section1_loc;          // line where the verbatim block starts
+    std::string section2_prologue;     // %{ ... %} blocks at top of section 2
+    SourceLoc   section2_loc;          // line where the section-2 block starts
     std::string section3;              // user-code section verbatim
     SourceLoc   section3_loc;          // line where section 3 begins
 
