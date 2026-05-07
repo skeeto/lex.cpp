@@ -1,0 +1,150 @@
+#include "codegen.h"
+#include "diag.h"
+#include "dfa.h"
+#include "nfa.h"
+#include "regex.h"
+#include "source.h"
+
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <string_view>
+#include <vector>
+
+namespace {
+
+constexpr std::string_view kVersion = "lex.cpp 0.1.0";
+
+void print_usage(std::FILE* out) {
+    std::fprintf(out,
+        "Usage: lex [OPTIONS] [FILE]\n"
+        "Generate a C scanner from a lex/flex source file.\n"
+        "\n"
+        "  -o, --outfile=FILE        write scanner to FILE (default lex.yy.c)\n"
+        "  -t, --stdout              write scanner to stdout\n"
+        "  -i, --case-insensitive    pattern matching ignores ASCII case\n"
+        "      --yylineno            track line number in yylineno\n"
+        "  -P, --prefix=STRING       use STRING instead of \"yy\" as prefix\n"
+        "  -s, --nodefault           suppress default rule\n"
+        "  -h, --help                show this help and exit\n"
+        "  -V, --version             show version and exit\n"
+        "\n"
+        "If FILE is omitted, lex reads stdin.\n");
+}
+
+struct Args {
+    std::string output_path;
+    std::string prefix = "yy";
+    std::string input_path;     // empty == stdin
+    bool to_stdout = false;
+    bool case_insensitive = false;
+    bool yylineno = false;
+    bool nodefault = false;
+};
+
+[[nodiscard]] bool starts_with(std::string_view s, std::string_view p) {
+    return s.size() >= p.size() && s.compare(0, p.size(), p) == 0;
+}
+
+int parse_args(int argc, char** argv, Args& out, lexcpp::Diagnostics& diag) {
+    for (int i = 1; i < argc; ++i) {
+        std::string_view a = argv[i];
+        if (a == "-h" || a == "--help") {
+            print_usage(stdout);
+            std::exit(0);
+        } else if (a == "-V" || a == "--version") {
+            std::printf("%.*s\n", static_cast<int>(kVersion.size()), kVersion.data());
+            std::exit(0);
+        } else if (a == "-t" || a == "--stdout") {
+            out.to_stdout = true;
+        } else if (a == "-i" || a == "--case-insensitive") {
+            out.case_insensitive = true;
+        } else if (a == "--yylineno") {
+            out.yylineno = true;
+        } else if (a == "-s" || a == "--nodefault") {
+            out.nodefault = true;
+        } else if (a == "-o") {
+            if (++i >= argc) { diag.error({}, "-o requires an argument"); return 2; }
+            out.output_path = argv[i];
+        } else if (starts_with(a, "--outfile=")) {
+            out.output_path = std::string(a.substr(10));
+        } else if (a == "-P") {
+            if (++i >= argc) { diag.error({}, "-P requires an argument"); return 2; }
+            out.prefix = argv[i];
+        } else if (starts_with(a, "--prefix=")) {
+            out.prefix = std::string(a.substr(9));
+        } else if (a == "--") {
+            if (++i < argc) out.input_path = argv[i];
+        } else if (!a.empty() && a[0] == '-' && a != "-") {
+            diag.error({}, "unknown option: " + std::string(a));
+            return 2;
+        } else {
+            if (!out.input_path.empty()) {
+                diag.error({}, "multiple input files are not supported");
+                return 2;
+            }
+            out.input_path = std::string(a);
+        }
+    }
+    if (out.output_path.empty() && !out.to_stdout)
+        out.output_path = "lex.yy.c";
+    return 0;
+}
+
+[[nodiscard]] std::string slurp(std::istream& in) {
+    std::ostringstream ss;
+    ss << in.rdbuf();
+    return std::move(ss).str();
+}
+
+} // namespace
+
+int main(int argc, char** argv) {
+    lexcpp::Diagnostics diag;
+    Args args;
+    if (int rc = parse_args(argc, argv, args, diag); rc != 0) return rc;
+
+    std::string source;
+    std::string source_label;
+    if (args.input_path.empty() || args.input_path == "-") {
+        source_label = "<stdin>";
+        source = slurp(std::cin);
+    } else {
+        source_label = args.input_path;
+        std::ifstream f(args.input_path, std::ios::binary);
+        if (!f) {
+            diag.error({}, "cannot open " + args.input_path);
+            return 1;
+        }
+        source = slurp(f);
+    }
+
+    auto file = lexcpp::parse_lex_file(source_label, source, diag);
+    if (!file || !diag.ok()) return 1;
+
+    lexcpp::NFA nfa;
+    for (std::size_t i = 0; i < file->rules.size(); ++i) {
+        // Phase C: parse pattern, build NFA, accumulate.
+        (void)i;
+    }
+
+    lexcpp::DFA dfa = lexcpp::build_dfa(nfa);
+    auto out = lexcpp::emit_c({&*file, &dfa});
+
+    if (args.to_stdout) {
+        std::fwrite(out.data(), 1, out.size(), stdout);
+    } else {
+        std::ofstream of(args.output_path, std::ios::binary);
+        if (!of) {
+            diag.error({}, "cannot open " + args.output_path + " for writing");
+            return 1;
+        }
+        of.write(out.data(), static_cast<std::streamsize>(out.size()));
+    }
+    return diag.ok() ? 0 : 1;
+}
