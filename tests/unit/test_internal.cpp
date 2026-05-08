@@ -442,7 +442,9 @@ void test_tables_write_file() {
     auto t = lexcpp::parse_regex("[a-z]+", resolver, false, d, {});
     lexcpp::add_rule_to_nfa(nfa, t.get(), 0, {});
     auto dfa = lexcpp::build_dfa(nfa, true, true);
-    const char *path = "/tmp/lex_unit_tables.tbl";
+    // Write to the test's CWD rather than /tmp; Windows runners don't
+    // have a /tmp directory.
+    const char *path = "lex_unit_tables.tbl";
     bool ok = lexcpp::write_tables_file(path, nfa, dfa, true, "yy");
     CHECK(ok);
     // Read back the magic.
