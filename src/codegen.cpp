@@ -704,9 +704,9 @@ std::string emit_c(const CodegenInput& in) {
     // yy_libc_malloc_p stays stable even after malloc has been
     // hijacked downstream.
     out += "#include <stdlib.h>\n";
-    out += "void *(*yy_libc_malloc_p)(size_t) = malloc;\n";
-    out += "void *(*yy_libc_realloc_p)(void *, size_t) = realloc;\n";
-    out += "void  (*yy_libc_free_p)(void *) = free;\n\n";
+    out += "static void *(*yy_libc_malloc_p)(size_t) = malloc;\n";
+    out += "static void *(*yy_libc_realloc_p)(void *, size_t) = realloc;\n";
+    out += "static void  (*yy_libc_free_p)(void *) = free;\n\n";
 
     // User %{ %} block(s)
     const std::string& gen_file = in.output_path.empty() ? std::string("lex.yy.c")
@@ -871,6 +871,31 @@ std::string emit_c(const CodegenInput& in) {
     out += (f.options.debug ? "1" : "0");
     out += ";\n\n";
 
+    // %option noyywrap: provide a default yywrap so user code that
+    // calls it links cleanly. Emit either a real function (the
+    // historical lex.cpp behaviour) or, when the user already
+    // function-like-macroed yywrap (Bison's scan-{code,gram,skel}.l
+    // does `#define <prefix>wrap() 1` in section 1), set
+    // YY_SKIP_YYWRAP and don't emit our function. The runtime sees
+    // YY_SKIP_YYWRAP and also skips its `extern int yywrap(void);`
+    // declaration -- that declaration would otherwise be expanded
+    // through the user's function-like macro and trip "wrong number
+    // of arguments". This block has to land before the runtime
+    // template so YY_SKIP_YYWRAP is visible to it.
+    if (f.options.noyywrap) {
+        out += "#ifdef yywrap\n";
+        out += "/* yywrap is already a macro (typically from a\n";
+        out += " * `#define <prefix>wrap()` in section 1 after a\n";
+        out += " * prefix= rename); skip our default function. */\n";
+        out += "#define YY_SKIP_YYWRAP\n";
+        out += "#else\n";
+        if (f.options.reentrant)
+            out += "int yywrap(yyscan_t s) { (void)s; return 1; }\n";
+        else
+            out += "int yywrap(void) { return 1; }\n";
+        out += "#endif\n\n";
+    }
+
     // Embed runtime helpers.
     out += "/* runtime helpers (from runtime/runtime.c.in) */\n";
     if (!in.runtime_override.empty()) {
@@ -987,13 +1012,9 @@ std::string emit_c(const CodegenInput& in) {
         out += "}\n\n";
     }
 
-    // yywrap default if requested.
-    if (f.options.noyywrap) {
-        if (f.options.reentrant)
-            out += "int yywrap(yyscan_t s) { (void)s; return 1; }\n\n";
-        else
-            out += "int yywrap(void) { return 1; }\n\n";
-    }
+    // (yywrap default emission moved earlier so YY_SKIP_YYWRAP
+    // reaches the runtime template before its `extern int yywrap`
+    // declaration.)
 
     // User epilogue.
     if (!f.section3.empty()) {

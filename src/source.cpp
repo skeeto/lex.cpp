@@ -388,6 +388,18 @@ struct Parser {
                 if (!sc_blocks.empty()) {
                     while (!at_end() && (peek() == ' ' || peek() == '\t')) get();
                     if (peek() == '\n') { get(); continue; }
+                    // Indented `/* ... */` is a C comment, not a rule.
+                    if (peek() == '/' && peek(1) == '*') {
+                        get(); get();
+                        while (!at_end()) {
+                            if (peek() == '*' && peek(1) == '/') {
+                                get(); get();
+                                break;
+                            }
+                            get();
+                        }
+                        continue;
+                    }
                     parse_rule();
                     continue;
                 }

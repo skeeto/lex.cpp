@@ -151,7 +151,11 @@ FILE *yyout    = 0;
     (yy_buffer_stack ? yy_buffer_stack[yy_buffer_stack_top] : (YY_BUFFER_STATE)0)
 #define YY_CURRENT_BUFFER_LVALUE  yy_buffer_stack[yy_buffer_stack_top]
 
-#if !YY_REENTRANT
+/* `#define yywrap` style noyywrap (Bison's scanners all do this) makes
+   the bare extern below a function-like macro invocation, which trips
+   GCC's "wrong arg count" diagnostic. Skip the extern when codegen
+   tells us to. */
+#if !YY_REENTRANT && !defined(YY_SKIP_YYWRAP)
 extern int yywrap(void);
 #endif
 
@@ -175,9 +179,9 @@ typedef size_t yy_size_t;
    pointers there are the real libc symbols even after the user
    redefines the macros. Suppressed via `%option noyyalloc` etc. when
    the user provides their own. */
-extern void *(*yy_libc_malloc_p)(size_t);
-extern void *(*yy_libc_realloc_p)(void *, size_t);
-extern void  (*yy_libc_free_p)(void *);
+/* yy_libc_malloc_p / yy_libc_realloc_p / yy_libc_free_p are defined
+   by codegen above the user prologue. The runtime references them
+   directly. */
 
 #ifndef YY_NO_YYALLOC
 static void *yyalloc(yy_size_t n YY_DECLPM_C) {
@@ -648,4 +652,23 @@ static inline FILE *yyget_out_r(yyscan_t s) { return yyget_out(s); }
 static inline void  yyset_out_r(FILE *f, yyscan_t s) { yyset_out(f, s); }
 static inline YY_EXTRA_TYPE yyget_extra_r(yyscan_t s) { return yyget_extra(s); }
 static inline void  yyset_extra_r(YY_EXTRA_TYPE v, yyscan_t s) { yyset_extra(v, s); }
+
+#else  /* !YY_REENTRANT */
+
+/* Non-reentrant yylex_destroy: tears down the buffer stack and resets
+   the static guts. flex provides this in both modes; some users
+   (Bison's scan-{code,gram,skel}.l) call <prefix>lex_destroy
+   regardless of mode. */
+int yylex_destroy(void) {
+    /* yypop_buffer_state already deletes the popped buffer; we just
+       drain the stack. */
+    while (YY_CURRENT_BUFFER) yypop_buffer_state();
+    yy_libc_free_p(yy_buffer_stack);
+    yy_buffer_stack = 0;
+    yy_libc_free_p(yy_state_stack);
+    yy_state_stack = 0;
+    yy_init_done = 0;
+    return 0;
+}
+
 #endif

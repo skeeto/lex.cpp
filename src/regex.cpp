@@ -379,7 +379,12 @@ int find_top_level_slash(std::string_view src) {
     bool in_class = false, in_quoted = false;
     for (std::size_t i = 0; i < src.size(); ++i) {
         char c = src[i];
-        if (in_class)  { if (c == ']') in_class = false; continue; }
+        if (in_class)  {
+            // Honour `\<char>` escapes so `\]` doesn't close the class.
+            if (c == '\\' && i + 1 < src.size()) { ++i; continue; }
+            if (c == ']') in_class = false;
+            continue;
+        }
         if (in_quoted) {
             if (c == '\\' && i + 1 < src.size()) ++i;
             else if (c == '"') in_quoted = false;
