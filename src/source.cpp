@@ -462,7 +462,22 @@ struct Parser {
                 if (peek() == '{') {
                     std::size_t save_brace = pos;
                     get();
+                    // Skip trailing whitespace and a `/* ... */` comment
+                    // (flex's own scan.l writes `<COMMENT,CODE_COMMENT>{ /* */`
+                    // on the block-opener line).
                     while (!at_end() && (peek() == ' ' || peek() == '\t')) get();
+                    if (peek() == '/' && peek(1) == '*') {
+                        get(); get();
+                        while (!at_end()) {
+                            if (peek() == '*' && peek(1) == '/') {
+                                get(); get();
+                                break;
+                            }
+                            if (peek() == '\n') break;  // unterminated -- bail
+                            get();
+                        }
+                        while (!at_end() && (peek() == ' ' || peek() == '\t')) get();
+                    }
                     if (at_end() || peek() == '\n') {
                         if (peek() == '\n') get();
                         sc_blocks.push_back(std::move(blk));

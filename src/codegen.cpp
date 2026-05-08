@@ -683,7 +683,9 @@ std::string emit_c(const CodegenInput& in) {
 
     out += "#include <stdio.h>\n";
     out += "#include <stdlib.h>\n";
-    out += "#include <string.h>\n\n";
+    out += "#include <string.h>\n";
+    out += "#include <errno.h>\n";  /* matches flex; user actions may use errno */
+    out += "\n";
 
     // Reentrant toggle (must precede the typedefs below).
     out += "#define YY_REENTRANT ";

@@ -313,7 +313,15 @@ private:
                 if (!std::isalnum(static_cast<unsigned char>(b))) out.add(b);
         }
         else {
-            diag_.error(loc_, "unknown POSIX character class: [:" + name + ":]");
+            // flex treats unknown class names as literal characters
+            // (so e.g. `[:Alpha:]` -- a real typo in flex's own
+            // src/scan.l! -- becomes the set { '[', ':', 'A', ... }).
+            // Rewind and let the caller fall back to byte-by-byte
+            // handling. Warn so the typo surfaces.
+            diag_.warn(loc_, "unrecognised POSIX class `[:" + name +
+                             ":]`; treating as literal characters");
+            pos_ = save;
+            return false;
         }
         return true;
     }
