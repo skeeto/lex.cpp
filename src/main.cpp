@@ -51,6 +51,7 @@ struct Args {
     bool nodefault = false;
     bool prefix_set = false;
     bool noline = false;
+    bool debug = false;
     std::string header_path;     // empty == no header file
     std::string tables_path;     // empty == no .tbl emission
     std::string skeleton_path;   // empty == use embedded runtime
@@ -93,9 +94,8 @@ int parse_args(int argc, const std::string_view* argv, Args& out,
             // `-CF` = full + no ECs; the others tweak alignment/read.
             // Treat as -f for now -- correctness-equivalent, just bigger.
             out.compress = lexcpp::CompressMode::Full;
-        } else if (a == "-d") {
-            // %option debug equivalent. We'll honour it via the option
-            // parser already; the CLI flag is informational here.
+        } else if (a == "-d" || a == "--debug") {
+            out.debug = true;
         } else if (a == "-p" || a == "-p1" || a == "-p2" ||
                    a == "--perf-report") {
             // perf-report: ignored (we don't profile DFA quality).
@@ -242,6 +242,7 @@ int core_main(int argc, const std::string_view* argv) {
     if (args.case_insensitive) file.options.case_insensitive = true;
     if (args.yylineno)         file.options.yylineno = true;
     if (args.nodefault)        file.options.nodefault = true;
+    if (args.debug)            file.options.debug = true;
     if (args.prefix_set)       file.options.prefix = args.prefix;
 
     // Scan all action bodies for the REJECT keyword (whole word).
