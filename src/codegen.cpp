@@ -297,6 +297,14 @@ std::string yy_lex_body_reject(const LexFile& f, const NFA& nfa,
     s << "    if (yy_first) {\n";
     s << "        #ifdef YY_USER_INIT\n        YY_USER_INIT\n        #endif\n";
     s << "    }\n";
+    if (!f.section2_prologue.empty()) {
+        std::string ld;
+        emit_line_directive(ld, f.section2_loc.file, f.section2_loc.line,
+                            line_directives);
+        s << ld;
+        s << f.section2_prologue;
+        if (f.section2_prologue.back() != '\n') s << "\n";
+    }
     s << "    int yy_match_lens[" << nrules << "];\n";
     s << "    int yy_rule = -1;\n";
     s << "    size_t yy_len = 0;\n";
@@ -335,11 +343,16 @@ std::string yy_lex_body_reject(const LexFile& f, const NFA& nfa,
     s << "        yy_mb = yy_buf_pos;\n";
     s << "        size_t yy_scan = yy_mb;\n";
     s << "        int yy_state = yy_at_bol ? yy_cond_bol[yy_start] : yy_cond_normal[yy_start];\n";
+    // EOL-only rules ($-anchored) only fire when the byte AFTER the
+    // match is `\n` (or we're at end-of-input). The accept_pool
+    // contains both kinds; filter at collection time.
     s << "        {\n";
     s << "            int yy_off = yy_accept_off[yy_state];\n";
     s << "            int yy_n   = yy_accept_off[yy_state + 1] - yy_off;\n";
+    s << "            int yy_at_eol = (yy_scan >= yy_buf_end || yy_buf[yy_scan] == '\\n');\n";
     s << "            for (int i = 0; i < yy_n; ++i) {\n";
     s << "                int r = yy_accept_pool[yy_off + i];\n";
+    s << "                if (yy_rule_eol[r] && !yy_at_eol) continue;\n";
     s << "                if (yy_match_lens[r] < 0) yy_match_lens[r] = 0;\n";
     s << "            }\n";
     s << "        }\n";
@@ -351,8 +364,10 @@ std::string yy_lex_body_reject(const LexFile& f, const NFA& nfa,
     s << "            yy_scan++;\n";
     s << "            int yy_off = yy_accept_off[yy_state];\n";
     s << "            int yy_n   = yy_accept_off[yy_state + 1] - yy_off;\n";
+    s << "            int yy_at_eol = (yy_scan >= yy_buf_end || yy_buf[yy_scan] == '\\n');\n";
     s << "            for (int i = 0; i < yy_n; ++i) {\n";
     s << "                int r = yy_accept_pool[yy_off + i];\n";
+    s << "                if (yy_rule_eol[r] && !yy_at_eol) continue;\n";
     s << "                int cur = (int)(yy_scan - yy_mb);\n";
     s << "                if (yy_match_lens[r] < cur) yy_match_lens[r] = cur;\n";
     s << "            }\n";
@@ -391,11 +406,20 @@ std::string yy_lex_body_reject(const LexFile& f, const NFA& nfa,
     s << "            int yy_trail = yy_rule_trail_len[yy_rule];\n";
     s << "            if (yy_trail > 0 && (size_t)yy_trail <= yy_len) yy_len -= (size_t)yy_trail;\n";
     s << "        }\n";
+    s << "        yy_buf_pos = yy_mb + yy_len;\n";
+    s << "        if (yy_more_offset > 0) {\n";
+    if (f.options.array) {
+        s << "            /* yymore is unsupported with %option array */\n";
+    } else {
+        s << "            yytext = yy_buf + yy_mb - (size_t)yy_more_offset;\n";
+    }
+    s << "            yy_len += (size_t)yy_more_offset;\n";
+    s << "        }\n";
+    s << "        yy_more_flag = 0;\n";
     s << "        yyleng = (int)yy_len;\n";
     s << "        yy_text_save = yytext[yy_len];\n";
     s << "        yytext[yy_len] = 0;\n";
     s << "        yy_text_active = 1;\n";
-    s << "        yy_buf_pos = yy_mb + yy_len;\n";
     if (f.options.yylineno) {
         s << "        for (size_t yy_i = 0; yy_i < yy_len; ++yy_i)\n";
         s << "            if (yytext[yy_i] == '\\n') yylineno++;\n";
@@ -440,6 +464,7 @@ std::string yy_lex_body_reject(const LexFile& f, const NFA& nfa,
     s << "            default: break;\n";
     s << "        }\n";
     s << "#undef REJECT\n";
+    s << "        yy_more_offset = yy_more_flag ? yyleng : 0;\n";
     s << "    }\n";
     s << "}\n";
     return s.str();
@@ -825,6 +850,19 @@ std::string emit_c(const CodegenInput& in) {
         for (auto t : nfa.rule_trail) tr.push_back(t);
         if (tr.empty()) tr.push_back(0);
         append_int_array(out, "yy_rule_trail_len", "int", tr);
+
+        // Per-rule EOL flag (1 = `$`-anchored, 0 = ordinary). Used by
+        // the REJECT body to filter accept candidates: an EOL-only
+        // rule must only fire when the next byte is `\n` or EOF.
+        // The non-REJECT body uses the per-state yy_accept_eol table
+        // and doesn't need this.
+        if (f.options.uses_reject) {
+            std::vector<long long> reol;
+            reol.reserve(nfa.rule_eol.size());
+            for (auto e : nfa.rule_eol) reol.push_back(e);
+            if (reol.empty()) reol.push_back(0);
+            append_int_array(out, "yy_rule_eol", "int", reol);
+        }
 
         // Per-rule source line number, for the %option debug trace.
         std::vector<long long> rl;

@@ -321,6 +321,24 @@ int core_main(int argc, const std::string_view* argv) {
     }
     if (!diag.ok()) return 1;
 
+    // REJECT does not work with variable-length trailing context.
+    // The REJECT body uses fixed-length per-rule trail tables and
+    // would need full per-rule boundary tracking to match flex's
+    // semantics; until that lands, refuse to generate an incorrect
+    // scanner.
+    if (file.options.uses_reject) {
+        for (std::size_t i = 0; i < nfa.rule_trail.size(); ++i) {
+            if (nfa.rule_trail[i] < 0) {
+                lexcpp::SourceLoc loc{};
+                if (i < file.rules.size()) loc = file.rules[i].loc;
+                diag.error(loc,
+                    "REJECT cannot be combined with variable-length "
+                    "trailing context");
+                return 1;
+            }
+        }
+    }
+
     bool use_ec   = args.compress != lexcpp::CompressMode::Full;
     bool use_meta = args.compress == lexcpp::CompressMode::Compress;
     lexcpp::DFA dfa = lexcpp::build_dfa(nfa, use_ec, use_meta);

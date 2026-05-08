@@ -1,47 +1,34 @@
 # Unit tests don't need flex.
 add_subdirectory(unit)
 
-find_package(FLEX)
-
-if(NOT FLEX_FOUND)
-    message(WARNING "flex not found; differential tests will be skipped. "
-                    "Install flex to enable the test suite.")
-    return()
-endif()
-
-# When OFF (default), tests only verify the flex side. When ON, every
-# test also generates a scanner with our `lex` and compares output to
-# flex byte-for-byte.
-option(LEXCPP_LEX_READY "Compare lex output against flex (full differential)" OFF)
-
-# Force lex.cpp to a specific table-compression mode for the sweep:
-# empty (default), "-f", "-Cfe", or "-Cem". Passed as an extra flag
-# to the lex generation step only -- flex's side is unaffected.
-set(LEXCPP_TEST_COMPRESS "" CACHE STRING
-    "Extra compression flag passed to lex during testing (-f/-Cfe/-Cem)")
-
-include(${CMAKE_CURRENT_SOURCE_DIR}/differential.cmake)
+# Lex-only integration tests: tables_load_roundtrip and skeleton_override
+# only need our `lex` binary and a C compiler. Register them before the
+# flex check so a developer or CI runner without flex still gets these.
 
 # Custom test: yytables_fload roundtrip end-to-end.
 # Generates a scanner with --tables-file, compiles with a driver that
 # calls yytables_fload before yylex, runs against fixed input, and
-# compares against a snapshot.
-configure_file(
-    ${CMAKE_CURRENT_SOURCE_DIR}/run_tables_load.cmake.in
-    ${CMAKE_CURRENT_BINARY_DIR}/run_tables_load.cmake
-    @ONLY)
-add_test(
-    NAME tables_load_roundtrip
-    COMMAND ${CMAKE_COMMAND}
-        -DLEX_EXE=$<TARGET_FILE:lex>
-        -DLEX_LIB=$<TARGET_FILE:lex_lib>
-        -DCC_EXE=${CMAKE_C_COMPILER}
-        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/work/tables_load
-        -DSCAN_L=${CMAKE_CURRENT_SOURCE_DIR}/tables_load/scanner.l
-        -DDRIVER_C=${CMAKE_CURRENT_SOURCE_DIR}/tables_load/driver.c
-        -DEXPECTED_OUT=${CMAKE_CURRENT_SOURCE_DIR}/tables_load/expected.txt
-        -DINPUT_TXT=${CMAKE_CURRENT_SOURCE_DIR}/tables_load/input.txt
-        -P ${CMAKE_CURRENT_BINARY_DIR}/run_tables_load.cmake)
+# compares against a snapshot. Requires a GCC-flag-compatible compiler;
+# skipped under MSVC because the runner passes -std=c99 / -W flags that
+# cl.exe rejects.
+if(NOT MSVC)
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/run_tables_load.cmake.in
+        ${CMAKE_CURRENT_BINARY_DIR}/run_tables_load.cmake
+        @ONLY)
+    add_test(
+        NAME tables_load_roundtrip
+        COMMAND ${CMAKE_COMMAND}
+            -DLEX_EXE=$<TARGET_FILE:lex>
+            -DLEX_LIB=$<TARGET_FILE:lex_lib>
+            -DCC_EXE=${CMAKE_C_COMPILER}
+            -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/work/tables_load
+            -DSCAN_L=${CMAKE_CURRENT_SOURCE_DIR}/tables_load/scanner.l
+            -DDRIVER_C=${CMAKE_CURRENT_SOURCE_DIR}/tables_load/driver.c
+            -DEXPECTED_OUT=${CMAKE_CURRENT_SOURCE_DIR}/tables_load/expected.txt
+            -DINPUT_TXT=${CMAKE_CURRENT_SOURCE_DIR}/tables_load/input.txt
+            -P ${CMAKE_CURRENT_BINARY_DIR}/run_tables_load.cmake)
+endif()
 
 # Custom test: -S/--skeleton override.
 # Generates a scanner using a copy of the embedded runtime with an
@@ -58,6 +45,27 @@ add_test(
         -DSCAN_L=${CMAKE_CURRENT_SOURCE_DIR}/skeleton/scanner.l
         -DRUNTIME_IN=${CMAKE_SOURCE_DIR}/runtime/runtime.c.in
         -P ${CMAKE_CURRENT_BINARY_DIR}/run_skeleton.cmake)
+
+find_package(FLEX)
+
+if(NOT FLEX_FOUND)
+    message(WARNING "flex not found; differential tests will be skipped. "
+                    "Install flex to enable the full test suite.")
+    return()
+endif()
+
+# When OFF (default), tests only verify the flex side. When ON, every
+# test also generates a scanner with our `lex` and compares output to
+# flex byte-for-byte.
+option(LEXCPP_LEX_READY "Compare lex output against flex (full differential)" OFF)
+
+# Force lex.cpp to a specific table-compression mode for the sweep:
+# empty (default), "-f", "-Cfe", or "-Cem". Passed as an extra flag
+# to the lex generation step only -- flex's side is unaffected.
+set(LEXCPP_TEST_COMPRESS "" CACHE STRING
+    "Extra compression flag passed to lex during testing (-f/-Cfe/-Cem)")
+
+include(${CMAKE_CURRENT_SOURCE_DIR}/differential.cmake)
 
 # Auto-discover test cases.
 file(GLOB CASE_DIRS LIST_DIRECTORIES true RELATIVE

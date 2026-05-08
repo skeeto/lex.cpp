@@ -44,7 +44,10 @@ endif()
 file(REMOVE_RECURSE "${BIN_DIR}/coverage")
 file(MAKE_DIRECTORY "${BIN_DIR}/coverage")
 
-# Run the test suite with profile output going to coverage/.
+# Run the test suite with profile output going to coverage/. Test
+# failures are surfaced as a fatal error: a coverage report computed
+# from a broken suite hides the very regressions the report is meant
+# to expose.
 execute_process(
     COMMAND ${CMAKE_BIN} -E env
             LLVM_PROFILE_FILE=${BIN_DIR}/coverage/lex-%p.profraw
@@ -52,7 +55,7 @@ execute_process(
     WORKING_DIRECTORY ${BIN_DIR}
     RESULT_VARIABLE rv)
 if(NOT rv EQUAL 0)
-    message(WARNING "ctest exited ${rv} (continuing to coverage report)")
+    message(FATAL_ERROR "ctest exited ${rv}; refusing to build coverage report")
 endif()
 
 # Merge profraw files.

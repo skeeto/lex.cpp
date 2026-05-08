@@ -120,7 +120,7 @@ jobs:
       - name: Run reentrant tests
         run: ctest --test-dir build -R '16[0-5]_' --output-on-failure
       - name: Run header-file tests
-        run: ctest --test-dir build -R 'header' --output-on-failure || true
+        run: ctest --test-dir build -R 'header' --output-on-failure
 
   macos:
     name: macOS
@@ -206,8 +206,10 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      # No flex on Windows runner by default; build only (LEXCPP_LEX_READY=OFF
-      # short-circuits inside tests/CMakeLists.txt when flex is not found).
+      # No flex on Windows runner by default; the differential cases inside
+      # tests/CMakeLists.txt short-circuit when FLEX is not found, but the
+      # unit tests and the lex-only integration tests (skeleton_override)
+      # are still registered and exercised by ctest.
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - run: cmake --build build --config Release -j
@@ -215,3 +217,5 @@ jobs:
         run: |
           .\build\bin\Release\lex.exe --version
           .\build\bin\Release\lex.exe --help
+      - name: Tests
+        run: ctest --test-dir build -C Release --output-on-failure
