@@ -407,8 +407,12 @@ struct Parser {
                 // Indented `<sc...>{` block openers, indented `<sc>pat`
                 // rules, or indented `}` block closers all need the
                 // top-level handling. Rewind and let the main switch
-                // dispatch.
-                if (peek() == '<' || peek() == '}') {
+                // dispatch. An indented `}` only counts as a block
+                // closer when an `<sc>{` is actually open; otherwise
+                // it's plain C in the yylex prologue (e.g. closing a
+                // brace from an `if`-block written before any rule).
+                if (peek() == '<' ||
+                    (peek() == '}' && !sc_blocks.empty())) {
                     pos = save; line = save_line; col = save_col;
                     // Skip the leading whitespace without re-entering
                     // this branch on the next iteration.
