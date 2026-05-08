@@ -382,36 +382,55 @@ struct Parser {
             // joins section2_prologue (alongside any `%{ ... %}`
             // blocks); after the first rule we ignore it (rare).
             if (c == ' ' || c == '\t') {
-                // Inside an `<sc>{ ... }` block, indented lines are
-                // rules with leading whitespace -- skip the indent and
-                // let parse_rule handle the pattern that follows.
-                if (!sc_blocks.empty()) {
-                    while (!at_end() && (peek() == ' ' || peek() == '\t')) get();
-                    if (peek() == '\n') { get(); continue; }
-                    // Indented `/* ... */` is a C comment, not a rule.
-                    if (peek() == '/' && peek(1) == '*') {
-                        get(); get();
-                        while (!at_end()) {
-                            if (peek() == '*' && peek(1) == '/') {
-                                get(); get();
-                                break;
-                            }
-                            get();
-                        }
-                        continue;
-                    }
-                    parse_rule();
+                // Look ahead past the leading whitespace to decide
+                // whether this is real prologue/rule content or a
+                // structural element (block opener/closer, comment).
+                std::size_t save = pos;
+                std::uint32_t save_line = line, save_col = col;
+                while (!at_end() && (peek() == ' ' || peek() == '\t')) get();
+                if (at_end() || peek() == '\n') {
+                    if (peek() == '\n') get();
                     continue;
                 }
-                // At top-level: indented lines before the first rule
-                // belong in the yylex prologue (matches flex). After
-                // the first rule, drop them.
-                std::string l = read_line_keep_nl();
-                if (out.rules.empty()) {
-                    if (out.section2_prologue.empty()) out.section2_loc = loc();
-                    out.section2_prologue += l;
+                // Indented `/* ... */` is a C comment, drop it.
+                if (peek() == '/' && peek(1) == '*') {
+                    get(); get();
+                    while (!at_end()) {
+                        if (peek() == '*' && peek(1) == '/') {
+                            get(); get();
+                            break;
+                        }
+                        get();
+                    }
+                    continue;
                 }
-                continue;
+                // Indented `<sc...>{` block openers, indented `<sc>pat`
+                // rules, or indented `}` block closers all need the
+                // top-level handling. Rewind and let the main switch
+                // dispatch.
+                if (peek() == '<' || peek() == '}') {
+                    pos = save; line = save_line; col = save_col;
+                    // Skip the leading whitespace without re-entering
+                    // this branch on the next iteration.
+                    while (!at_end() && (peek() == ' ' || peek() == '\t')) get();
+                    c = peek();
+                } else if (!sc_blocks.empty()) {
+                    // Inside an `<sc>{ ... }` block, indented lines are
+                    // rules with leading whitespace.
+                    parse_rule();
+                    continue;
+                } else {
+                    // At top-level: indented lines before the first
+                    // rule belong in the yylex prologue (matches flex).
+                    // After the first rule, drop them.
+                    pos = save; line = save_line; col = save_col;
+                    std::string l = read_line_keep_nl();
+                    if (out.rules.empty()) {
+                        if (out.section2_prologue.empty()) out.section2_loc = loc();
+                        out.section2_prologue += l;
+                    }
+                    continue;
+                }
             }
             // `}` (optionally followed by whitespace + newline) closes
             // an `<sc>{` block.
